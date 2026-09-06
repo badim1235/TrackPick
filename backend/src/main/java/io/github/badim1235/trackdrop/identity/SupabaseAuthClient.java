@@ -19,6 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 public class SupabaseAuthClient implements SupabaseAuthGateway {
 
 	private final RestClient restClient;
+	private final RestClient adminRestClient;
 	private final ObjectMapper objectMapper;
 	private final SupabaseAuthProperties properties;
 
@@ -27,17 +28,32 @@ public class SupabaseAuthClient implements SupabaseAuthGateway {
 		ObjectMapper objectMapper,
 		SupabaseAuthProperties properties
 	) {
-		this(createRestClient(properties), objectMapper, properties);
+		this(createRestClient(properties), createAdminRestClient(properties), objectMapper, properties);
 	}
 
 	SupabaseAuthClient(
 		RestClient restClient,
+		RestClient adminRestClient,
 		ObjectMapper objectMapper,
 		SupabaseAuthProperties properties
 	) {
 		this.restClient = restClient;
+		this.adminRestClient = adminRestClient;
 		this.objectMapper = objectMapper;
 		this.properties = properties;
+	}
+
+	private static RestClient createAdminRestClient(SupabaseAuthProperties properties) {
+		HttpClient httpClient = HttpClient.newBuilder()
+			.connectTimeout(Duration.ofSeconds(3))
+			.followRedirects(HttpClient.Redirect.NORMAL)
+			.build();
+		JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+		requestFactory.setReadTimeout(Duration.ofSeconds(5));
+		return RestClient.builder()
+			.baseUrl(properties.url())
+			.requestFactory(requestFactory)
+			.build();
 	}
 
 	private static RestClient createRestClient(SupabaseAuthProperties properties) {
@@ -112,6 +128,30 @@ public class SupabaseAuthClient implements SupabaseAuthGateway {
 		}
 		catch (RestClientException exception) {
 			throw IdentityException.authProviderUnavailable();
+		}
+	}
+
+	@Override
+	public void deleteUser(UUID userId) {
+		if (properties.secretKey() == null || properties.secretKey().isBlank()) {
+			throw IdentityException.accountDeletionUnavailable();
+		}
+		try {
+			adminRestClient.delete()
+				.uri("/auth/v1/admin/users/{userId}", userId)
+				.header("apikey", properties.secretKey())
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.secretKey())
+				.retrieve()
+				.onStatus(HttpStatusCode::isError, (httpRequest, response) -> {
+					throw IdentityException.accountDeletionUnavailable();
+				})
+				.toBodilessEntity();
+		}
+		catch (IdentityException exception) {
+			throw exception;
+		}
+		catch (RestClientException exception) {
+			throw IdentityException.accountDeletionUnavailable();
 		}
 	}
 

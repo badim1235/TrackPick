@@ -34,4 +34,15 @@ public class RememberedSessionCookie {
 			.build();
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 	}
+
+	public void clear(HttpServletResponse response) {
+		ResponseCookie cookie = ResponseCookie.from("TRACKDROP_SESSION", "")
+			.httpOnly(true)
+			.secure(secure)
+			.sameSite("Lax")
+			.path("/")
+			.maxAge(Duration.ZERO)
+			.build();
+		response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+	}
 }

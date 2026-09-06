@@ -52,6 +52,13 @@ public class IdentityException extends RuntimeException {
 			401);
 	}
 
+	public static IdentityException accountDeletionUnavailable() {
+		return new IdentityException(
+			"ACCOUNT_DELETION_UNAVAILABLE",
+			"회원 탈퇴를 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+			503);
+	}
+
 	public static IdentityException rateLimited(long retryAfterSeconds) {
 		return new RateLimitedIdentityException(
 			"RATE_LIMITED",

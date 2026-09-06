@@ -61,10 +61,10 @@ async function csrfToken(): Promise<string> {
   return body.token
 }
 
-async function mutate<T>(path: string, body?: unknown): Promise<T> {
+async function mutate<T>(path: string, body?: unknown, method = 'POST'): Promise<T> {
   const token = await csrfToken()
   const response = await fetch(path, {
-    method: 'POST',
+    method,
     credentials: 'include',
     headers: {
       Accept: 'application/json',
@@ -182,6 +182,10 @@ export function login(body: LoginRequest): Promise<AccountResponse> {
 
 export function logout(): Promise<void> {
   return mutate('/api/v1/auth/logout')
+}
+
+export function deleteAccount(password: string): Promise<void> {
+  return mutate('/api/v1/me', { password }, 'DELETE')
 }
 
 export function requestPasswordRecovery(body: PasswordRecoveryRequest): Promise<void> {

@@ -134,7 +134,8 @@ export interface paths {
         get: operations["getMyAccount"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Permanently delete the current account and its activity */
+        delete: operations["deleteMyAccount"];
         options?: never;
         head?: never;
         patch?: never;
@@ -322,6 +323,10 @@ export interface components {
             /** Format: password */
             password: string;
             rememberMe: boolean;
+        };
+        DeleteAccountRequest: {
+            /** Format: password */
+            password: string;
         };
         PasswordRecoveryRequest: {
             /** Format: email */
@@ -746,6 +751,15 @@ export interface components {
                 "application/json": components["schemas"]["ApiErrorResponse"];
             };
         };
+        /** @description A required external service is temporarily unavailable. */
+        ServiceUnavailableError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ApiErrorResponse"];
+            };
+        };
     };
     parameters: {
         CsrfHeader: string;
@@ -955,6 +969,33 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationError"];
+        };
+    };
+    deleteMyAccount: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["CsrfHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description The account, recommendations, votes, and sessions were deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["AuthenticationError"];
+            503: components["responses"]["ServiceUnavailableError"];
         };
     };
     searchMusic: {

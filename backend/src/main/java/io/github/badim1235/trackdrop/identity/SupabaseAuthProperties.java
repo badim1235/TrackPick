@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record SupabaseAuthProperties(
 	String url,
 	String publishableKey,
+	String secretKey,
 	String emailRedirectUrl,
 	String passwordRecoveryRedirectUrl
 ) {

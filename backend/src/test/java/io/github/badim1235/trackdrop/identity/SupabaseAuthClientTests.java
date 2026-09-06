@@ -56,21 +56,47 @@ class SupabaseAuthClientTests {
 		testClient.server().verify();
 	}
 
+	@Test
+	void deletesAUserThroughTheServerOnlyAdminApi() {
+		TestClient testClient = testClient();
+		String userId = "715ed5db-f090-4b8c-a067-640ecee36aa0";
+		testClient.adminServer().expect(requestTo(
+				"https://project.supabase.co/auth/v1/admin/users/" + userId))
+			.andExpect(method(HttpMethod.DELETE))
+			.andExpect(header("apikey", "secret-key"))
+			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer secret-key"))
+			.andRespond(withStatus(HttpStatus.OK));
+
+		testClient.client().deleteUser(java.util.UUID.fromString(userId));
+
+		testClient.adminServer().verify();
+	}
+
 	private static TestClient testClient() {
 		RestClient.Builder builder = RestClient.builder()
 			.baseUrl("https://project.supabase.co")
 			.defaultHeader("apikey", "publishable-key");
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		RestClient.Builder adminBuilder = RestClient.builder()
+			.baseUrl("https://project.supabase.co");
+		MockRestServiceServer adminServer = MockRestServiceServer.bindTo(adminBuilder).build();
 		SupabaseAuthProperties properties = new SupabaseAuthProperties(
 			"https://project.supabase.co",
 			"publishable-key",
+			"secret-key",
 			"https://trackpick.net/login?verified=1",
 			"https://trackpick.net/recover/password");
 		return new TestClient(
-			new SupabaseAuthClient(builder.build(), new ObjectMapper(), properties),
-			server);
+			new SupabaseAuthClient(
+				builder.build(), adminBuilder.build(), new ObjectMapper(), properties),
+			server,
+			adminServer);
 	}
 
-	private record TestClient(SupabaseAuthClient client, MockRestServiceServer server) {
+	private record TestClient(
+		SupabaseAuthClient client,
+		MockRestServiceServer server,
+		MockRestServiceServer adminServer
+	) {
 	}
 }

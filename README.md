@@ -21,6 +21,7 @@ Phase 13까지 구현되어 계정 인증부터 Apple 음악 검색, 곡 추천,
 - Supabase `public` 함수의 `anon`·`authenticated` 실행 권한과 향후 자동 부여 차단
 - 여러 기기 동시 로그인과 선택형 7일 로그인 유지
 - 내 계정 이메일과 오늘의 추천권 조회
+- 비밀번호 재확인 후 추천·투표 기록과 모든 로그인 세션을 함께 삭제하는 회원 탈퇴
 - IP별 인증 요청 및 계정 생성 제한
 - Apple KR 스토어 우선 검색과 빈 결과 시 US 보완 검색, 관련도순 상위 20곡 표시
 - Explicit 곡 포함·표시, 앨범 정보와 Apple Music 외부 링크 제공
@@ -56,6 +57,7 @@ docker compose up -d postgres
 cd backend
 $env:SUPABASE_URL="https://your-project-ref.supabase.co"
 $env:SUPABASE_PUBLISHABLE_KEY="sb_publishable_your_key"
+$env:SUPABASE_SECRET_KEY="sb_secret_your_server_only_key"
 .\mvnw.cmd spring-boot:run
 
 cd ..\frontend
@@ -67,7 +69,7 @@ npm run dev
 
 프로젝트 루트의 `.env`에 Supabase Auth 설정이 준비되어 있다면 `.\scripts\run-local.ps1`로 로컬 PostgreSQL에 연결한 백엔드를 실행할 수 있습니다. Supabase PostgreSQL 연결 자체를 확인할 때만 `.\scripts\run-local.ps1 -UseConfiguredDatabase`를 사용합니다.
 
-운영 환경에서는 Spring datasource를 Supabase PostgreSQL 연결 정보로 설정하고 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `AUTH_EMAIL_REDIRECT_URL`, `AUTH_PASSWORD_RECOVERY_REDIRECT_URL`, `IP_HASH_SECRET`, `SESSION_COOKIE_SECURE=true`를 별도로 설정합니다. 실제 이메일 발송에는 Supabase Custom SMTP 설정을 권장합니다. Docker Desktop이 실행 중이어야 로컬 PostgreSQL과 Testcontainers 기반 통합 테스트를 사용할 수 있습니다.
+운영 환경에서는 Spring datasource를 Supabase PostgreSQL 연결 정보로 설정하고 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `AUTH_EMAIL_REDIRECT_URL`, `AUTH_PASSWORD_RECOVERY_REDIRECT_URL`, `IP_HASH_SECRET`, `SESSION_COOKIE_SECURE=true`를 별도로 설정합니다. `SUPABASE_SECRET_KEY`는 회원 탈퇴 시 Auth 사용자를 삭제하는 서버 전용 키이므로 프런트엔드나 저장소에 노출하면 안 됩니다. 실제 이메일 발송에는 Supabase Custom SMTP 설정을 권장합니다. Docker Desktop이 실행 중이어야 로컬 PostgreSQL과 Testcontainers 기반 통합 테스트를 사용할 수 있습니다.
 
 한줄평 신고 기능은 저장 구조와 API만 준비되어 있으며 기본값은 비활성입니다. 운영 정책과 검토 절차를 마련한 뒤에만 `REPORTS_ENABLED=true`로 켜며, 현재 프런트엔드에는 신고 진입점을 노출하지 않습니다.
 
@@ -80,6 +82,7 @@ npm run dev
 - `POSTGRES_PASSWORD`: Supabase 데이터베이스 비밀번호
 - `SUPABASE_URL`: Supabase 프로젝트 URL
 - `SUPABASE_PUBLISHABLE_KEY`: Supabase publishable key
+- `SUPABASE_SECRET_KEY`: Supabase 서버 전용 secret key (`sb_secret_...`)
 
 Render가 제공하는 `RENDER_EXTERNAL_URL`을 가입 확인과 비밀번호 재설정의 기본 리디렉션 주소로 사용합니다. 배포가 완료되면 Supabase Authentication의 URL Configuration에서 Site URL을 Render의 HTTPS 주소로 설정하고 다음 Redirect URL을 추가합니다.
 

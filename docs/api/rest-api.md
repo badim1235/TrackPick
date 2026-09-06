@@ -294,6 +294,7 @@ Path=/
 | POST | `/auth/login` | 공개 | 로그인 |
 | POST | `/auth/logout` | 필요 | 로그아웃 |
 | GET | `/me` | 필요 | 내 계정과 오늘 quota 조회 |
+| DELETE | `/me` | 필요 | 비밀번호 재확인 후 계정과 활동 기록 삭제 |
 | GET | `/genres` | 공개 | 활성 장르 목록 |
 | GET | `/home` | 공개 | 오늘 추천 상위와 최근 등록 |
 | GET | `/tracks/recent` | 공개 | 최근 등록 Track 목록 |
@@ -423,6 +424,29 @@ Response `200 OK`:
   }
 }
 ```
+
+### 9.7 DELETE /me
+
+- 인증 및 CSRF 필요
+- 현재 비밀번호로 Supabase Auth 재인증
+- 사용자의 추천·투표·추천권·신고 기록과 해당 추천에 종속된 과거 차트 항목 삭제
+- 다른 추천이 남지 않은 곡의 내부 catalog row 삭제
+- TrackPick의 모든 기기 session과 Supabase Auth 사용자 삭제
+- Response `204 No Content`
+
+Request:
+
+```json
+{
+  "password": "chatgpt5555"
+}
+```
+
+오류:
+
+- `400 VALIDATION_FAILED`
+- `401 INVALID_CREDENTIALS`
+- `503 ACCOUNT_DELETION_UNAVAILABLE`
 
 이메일은 로그인 ID이므로 별도 ID 찾기 API를 제공하지 않는다. 이메일 확인과 비밀번호 재설정 token은 Supabase Auth가 관리한다.
 

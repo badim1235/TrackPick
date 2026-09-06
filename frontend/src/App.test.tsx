@@ -458,6 +458,48 @@ describe('TrackPick app shell', () => {
     expect(screen.queryByText('이미 존재하는 이메일입니다.')).not.toBeInTheDocument()
   })
 
+  it('requires the current password before deleting an account', async () => {
+    let deleted = false
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/v1/me' && init?.method === 'DELETE') {
+        expect(JSON.parse(String(init.body))).toEqual({ password: 'chatgpt5555' })
+        expect(new Headers(init.headers).get('X-XSRF-TOKEN')).toBe('csrf-token')
+        deleted = true
+        return new Response(null, { status: 204 })
+      }
+      if (url === '/api/v1/me') {
+        if (deleted) return new Response(null, { status: 401 })
+        return Response.json({
+          account: {
+            email: 'listener@example.com',
+            publicNickname: '새벽리듬4881',
+            emailVerified: true,
+            createdAt: '2026-08-01T00:00:00Z',
+          },
+          quota: {
+            date: '2026-09-03', limit: 4, used: 1, remaining: 3,
+            resetAt: '2026-09-03T15:00:00Z',
+          },
+        })
+      }
+      if (url === '/api/v1/auth/csrf') return Response.json({ token: 'csrf-token' })
+      return new Response(null, { status: 404 })
+    })
+    const user = userEvent.setup()
+    renderApp('/me')
+
+    await user.click(await screen.findByRole('button', { name: '회원 탈퇴' }))
+    const dialog = screen.getByRole('dialog', { name: '회원 탈퇴' })
+    expect(dialog).toHaveTextContent('추천·투표 기록이 모두 삭제되며 되돌릴 수 없습니다.')
+    await user.type(screen.getByLabelText('현재 비밀번호', { selector: 'input' }), 'chatgpt5555')
+    await user.click(screen.getByRole('button', { name: '탈퇴하기' }))
+
+    await waitFor(() => expect(deleted).toBe(true))
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/me', expect.objectContaining({ method: 'DELETE' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
   it('opens the account recovery entry pages', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }))
     renderApp('/recover/password')

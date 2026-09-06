@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Eye, EyeOff, KeyRound, LockKeyhole, LogIn, UserPlus } from 'lucide-react'
+import { CircleHelp, Eye, EyeOff, KeyRound, LockKeyhole, LogIn, Trash2, UserPlus, X } from 'lucide-react'
 import { useState } from 'react'
 import { useForm, type UseFormRegisterReturn } from 'react-hook-form'
 import { NavLink, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
-import { ApiError, login, logout, requestPasswordRecovery, resetPassword, signUp, type AccountResponse } from '../api/client'
+import { ApiError, deleteAccount, login, logout, requestPasswordRecovery, resetPassword, signUp, type AccountResponse } from '../api/client'
 import styles from '../App.module.css'
 import { accountQueryKey, useAccount } from './account'
 
@@ -312,12 +312,30 @@ export function AccountPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
+  const [deletionOpen, setDeletionOpen] = useState(false)
   const { data, isPending } = useAccount()
-  const mutation = useMutation({
+  const deletionForm = useForm<{ password: string }>()
+  const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
       queryClient.setQueryData<AccountResponse | null>(accountQueryKey, null)
       navigate('/', { replace: true })
+    },
+  })
+  const deletionMutation = useMutation({
+    mutationFn: ({ password }: { password: string }) => deleteAccount(password),
+    onSuccess: () => {
+      queryClient.clear()
+      navigate('/', { replace: true })
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === 'INVALID_CREDENTIALS') {
+        deletionForm.setError('password', { message: '현재 비밀번호를 확인해 주세요.' }, { shouldFocus: true })
+        return
+      }
+      deletionForm.setError('root', {
+        message: error instanceof ApiError ? error.message : '회원 탈퇴를 처리하지 못했습니다.',
+      })
     },
   })
 
@@ -346,9 +364,50 @@ export function AccountPage() {
         <div><span>오늘의 추천</span><strong>{quota.used}/{quota.limit}</strong></div>
         <p>남은 추천권 {quota.remaining}회</p>
       </section>
-      <button className={styles.logoutButton} type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-        <LogIn aria-hidden="true" size={17} /> {mutation.isPending ? '로그아웃 중...' : '로그아웃'}
-      </button>
+      <div className={styles.accountActions}>
+        <button className={styles.logoutButton} type="button" onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
+          <LogIn aria-hidden="true" size={17} /> {logoutMutation.isPending ? '로그아웃 중...' : '로그아웃'}
+        </button>
+        <button className={styles.withdrawButton} type="button" onClick={() => setDeletionOpen(true)}>
+          회원 탈퇴
+        </button>
+      </div>
+      {deletionOpen && (
+        <div className={styles.dialogBackdrop} role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !deletionMutation.isPending) setDeletionOpen(false)
+        }}>
+          <section className={styles.accountDialog} role="dialog" aria-modal="true" aria-labelledby="account-deletion-title">
+            <button
+              className={styles.dialogCloseButton}
+              type="button"
+              aria-label="닫기"
+              disabled={deletionMutation.isPending}
+              onClick={() => setDeletionOpen(false)}
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+            <Trash2 className={styles.dialogIcon} aria-hidden="true" size={22} />
+            <h2 id="account-deletion-title">회원 탈퇴</h2>
+            <p>계정과 추천·투표 기록이 모두 삭제되며 되돌릴 수 없습니다.</p>
+            <form onSubmit={deletionForm.handleSubmit((fields) => deletionMutation.mutate(fields))} noValidate>
+              <PasswordField
+                label="현재 비밀번호"
+                error={deletionForm.formState.errors.password?.message}
+                registration={deletionForm.register('password', { required: '현재 비밀번호를 입력해 주세요.' })}
+              />
+              {deletionForm.formState.errors.root?.message && (
+                <p className={styles.formError} role="alert">{deletionForm.formState.errors.root.message}</p>
+              )}
+              <div className={styles.dialogActions}>
+                <button type="button" onClick={() => setDeletionOpen(false)} disabled={deletionMutation.isPending}>취소</button>
+                <button className={styles.dangerButton} type="submit" disabled={deletionMutation.isPending}>
+                  {deletionMutation.isPending ? '탈퇴 처리 중...' : '탈퇴하기'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   )
 }

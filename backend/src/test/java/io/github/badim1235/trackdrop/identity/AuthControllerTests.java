@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -201,6 +202,38 @@ class AuthControllerTests {
 		Cookie sessionCookie = login.getResponse().getCookie("TRACKDROP_SESSION");
 		mockMvc.perform(post("/api/v1/auth/logout").cookie(sessionCookie).with(csrf()))
 			.andExpect(status().isNoContent());
+		mockMvc.perform(get("/api/v1/me").cookie(sessionCookie))
+			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void deletesTheAuthenticatedAccountAndInvalidatesItsSession() throws Exception {
+		String email = uniqueEmail();
+		UUID userId = UUID.randomUUID();
+		when(supabaseAuth.signIn(email, "chatgpt5555"))
+			.thenReturn(new SupabaseAuthGateway.AuthenticatedUser(userId, email, Instant.now()));
+
+		MvcResult login = login(email, true).andExpect(status().isOk()).andReturn();
+		Cookie sessionCookie = login.getResponse().getCookie("TRACKDROP_SESSION");
+
+		mockMvc.perform(delete("/api/v1/me")
+				.cookie(sessionCookie)
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"password":"chatgpt5555"}
+					"""))
+			.andExpect(status().isNoContent())
+			.andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(
+				containsString("TRACKDROP_SESSION=;"))));
+
+		verify(supabaseAuth).deleteUser(userId);
+		org.assertj.core.api.Assertions.assertThat(
+			jdbcClient.sql("SELECT count(*) FROM users WHERE id = :userId")
+				.param("userId", userId)
+				.query(Long.class)
+				.single())
+			.isZero();
 		mockMvc.perform(get("/api/v1/me").cookie(sessionCookie))
 			.andExpect(status().isUnauthorized());
 	}

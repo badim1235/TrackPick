@@ -13,6 +13,8 @@ public interface SupabaseAuthGateway {
 
 	void updatePassword(String accessToken, String password);
 
+	void deleteUser(UUID userId);
+
 	record AuthenticatedUser(UUID id, String email, Instant emailVerifiedAt) {
 	}
 }

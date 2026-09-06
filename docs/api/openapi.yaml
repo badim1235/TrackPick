@@ -163,6 +163,27 @@ paths:
                 $ref: '#/components/schemas/AccountResponse'
         '401':
           $ref: '#/components/responses/AuthenticationError'
+    delete:
+      operationId: deleteMyAccount
+      summary: Permanently delete the current account and its activity
+      tags: [Identity]
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAccountRequest'
+      responses:
+        '204':
+          description: The account, recommendations, votes, and sessions were deleted.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthenticationError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
   /music/search:
     get:
       operationId: searchMusic
@@ -484,6 +505,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiErrorResponse'
+    ServiceUnavailableError:
+      description: A required external service is temporarily unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
   schemas:
     SystemHealthResponse:
       type: object
@@ -538,6 +565,14 @@ components:
           format: password
         rememberMe:
           type: boolean
+    DeleteAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
     PasswordRecoveryRequest:
       type: object
       additionalProperties: false
