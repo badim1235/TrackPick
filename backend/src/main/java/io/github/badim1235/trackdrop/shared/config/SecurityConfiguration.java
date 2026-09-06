@@ -57,8 +57,8 @@ public class SecurityConfiguration {
 				authorize.requestMatchers(
 					"/", "/error", "/index.html", "/chart", "/recent", "/recommend", "/login", "/join", "/me",
 					"/tracks/*",
-					"/recover/id", "/recover/password", "/assets/**", "/favicon.ico", "/favicon.svg",
-					"/og-image.png").permitAll();
+					"/recover/id", "/recover/password", "/assets/**", "/favicon.ico", "/favicon-64.png",
+					"/apple-touch-icon.png", "/trackpick-logo.png", "/og-image.png").permitAll();
 				authorize.requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll();
 				authorize.requestMatchers(HttpMethod.GET, "/api/v1/genres").permitAll();
 				authorize.requestMatchers(

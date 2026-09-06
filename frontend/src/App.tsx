@@ -3,7 +3,6 @@ import {
   CircleUserRound,
   Home,
   LogIn,
-  Music2,
   Sparkles,
 } from 'lucide-react'
 import { NavLink, Route, Routes, useLocation } from 'react-router'
@@ -60,7 +59,7 @@ function App() {
     <div className={styles.app}>
       <header className={styles.topBar}>
         <NavLink className={styles.brand} to="/" aria-label="TrackPick 홈">
-          <span className={styles.brandMark}><Music2 aria-hidden="true" size={20} /></span>
+          <img className={styles.brandMark} src="/trackpick-logo.png" alt="" aria-hidden="true" />
           <span>TrackPick</span>
         </NavLink>
         <Navigation />

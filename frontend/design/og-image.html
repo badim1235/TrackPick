@@ -30,27 +30,14 @@
       .brand {
         display: flex;
         align-items: center;
-        gap: 38px;
+        gap: 34px;
       }
 
       .mark {
-        width: 150px;
-        height: 150px;
-        display: grid;
-        place-items: center;
-        color: #fcfbf8;
-        background: #1c1c1c;
-        border-radius: 26px;
-      }
-
-      .mark svg {
-        width: 88px;
-        height: 88px;
-        fill: none;
-        stroke: currentColor;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        stroke-width: 2;
+        width: 166px;
+        height: 166px;
+        display: block;
+        object-fit: contain;
       }
 
       .name {
@@ -63,13 +50,7 @@
   </head>
   <body>
     <div class="brand">
-      <div class="mark">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="8" cy="18" r="3" />
-          <circle cx="18" cy="16" r="3" />
-          <path d="M11 18V5l10-2v13" />
-        </svg>
-      </div>
+      <img class="mark" src="../public/trackpick-logo.png" alt="" />
       <div class="name">TrackPick</div>
     </div>
   </body>
