@@ -15,14 +15,14 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest
+@SpringBootTest(properties = "trackdrop.features.reports-enabled=false")
 @AutoConfigureMockMvc
 class ReportFeatureDisabledControllerTests {
 	@Autowired
 	private MockMvc mockMvc;
 
 	@Test
-	void hidesTheReportEndpointFromUnauthenticatedRequestsByDefault() throws Exception {
+	void hidesTheReportEndpointWhenTheFeatureIsDisabled() throws Exception {
 		mockMvc.perform(post("/api/v1/recommendations/{recommendationId}/reports", UUID.randomUUID())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""

@@ -59,6 +59,8 @@ class TrackDetailControllerTests {
 			.andExpect(jsonPath("$.today.overallRank").value(1))
 			.andExpect(jsonPath("$.today.genreRank").value(1))
 			.andExpect(jsonPath("$.actions.canVote").value(false))
+			.andExpect(jsonPath("$.actions.canReport").value(false))
+			.andExpect(jsonPath("$.actions.hasReported").value(false))
 			.andExpect(jsonPath("$.actions.reason").value("UNAUTHENTICATED"))
 			.andExpect(jsonPath("$.quota").doesNotExist());
 	}
@@ -79,6 +81,8 @@ class TrackDetailControllerTests {
 			.andExpect(jsonPath("$.quota.limit").value(4))
 			.andExpect(jsonPath("$.quota.remaining").value(4))
 			.andExpect(jsonPath("$.actions.canVote").value(true))
+			.andExpect(jsonPath("$.actions.canReport").value(true))
+			.andExpect(jsonPath("$.actions.hasReported").value(false))
 			.andExpect(jsonPath("$.actions.reason").doesNotExist());
 	}
 

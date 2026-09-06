@@ -92,6 +92,65 @@
   flex: 1;
 }
 
+.notFoundPage {
+  min-height: calc(100vh - 137px);
+  display: grid;
+  place-items: center;
+  padding: 64px 0 88px;
+  text-align: center;
+}
+
+.notFoundContent {
+  width: min(440px, 100%);
+  display: grid;
+  justify-items: center;
+}
+
+.notFoundLogo {
+  width: 76px;
+  height: 76px;
+  display: block;
+  object-fit: contain;
+}
+
+.notFoundCode {
+  margin: 24px 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.notFoundContent h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.notFoundContent > p:last-of-type {
+  margin: 14px 0 30px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.notFoundHomeLink {
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 17px;
+  border-radius: 6px;
+  color: #fcfbf8;
+  background: var(--ink);
+  box-shadow: var(--button-shadow);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.notFoundHomeLink:hover { opacity: .82; }
+
 .pageStack { padding: 56px 0 96px; }
 
 .intro {
@@ -1008,6 +1067,21 @@ a.loginNotice:hover { color: var(--ink); text-decoration: underline; text-underl
 .quotaBand strong { font-size: 30px; }
 .quotaBand p { margin: 0; color: var(--success); font-size: 13px; font-weight: 400; }
 
+.adminAccountLink {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.adminAccountLink > svg { flex: 0 0 auto; }
+.adminAccountLink > span { display: grid; gap: 4px; }
+.adminAccountLink strong { font-size: 14px; }
+.adminAccountLink small { color: var(--muted); font-size: 11px; font-weight: 400; }
+.adminAccountLink:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+
 .logoutButton {
   height: 42px;
   display: inline-flex;
@@ -1056,7 +1130,9 @@ a.loginNotice:hover { color: var(--ink); text-decoration: underline; text-underl
   background: rgb(18 18 18 / 52%);
 }
 
-.accountDialog {
+.accountDialog,
+.reportDialog,
+.adminConfirmDialog {
   position: relative;
   width: min(420px, 100%);
   padding: 30px;
@@ -1082,9 +1158,28 @@ a.loginNotice:hover { color: var(--ink); text-decoration: underline; text-underl
 }
 
 .dialogIcon { color: var(--danger); }
-.accountDialog h2 { margin: 12px 0 8px; font-size: 22px; font-weight: 500; }
-.accountDialog > p { margin: 0 0 24px; color: var(--ink-soft); font-size: 14px; line-height: 1.65; }
-.accountDialog form { display: grid; gap: 20px; }
+.accountDialog h2,
+.reportDialog h2,
+.adminConfirmDialog h2 { margin: 12px 0 8px; font-size: 22px; font-weight: 500; }
+.accountDialog > p,
+.reportDialog > p,
+.adminConfirmDialog > p { margin: 0 0 24px; color: var(--ink-soft); font-size: 14px; line-height: 1.65; }
+.accountDialog form,
+.reportDialog form { display: grid; gap: 20px; }
+
+.reportDialog { width: min(460px, 100%); }
+.reportDialog .field { position: relative; }
+.reportDialog select,
+.reportDialog textarea {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--paper);
+}
+.reportDialog select { height: 46px; padding: 0 12px; }
+.reportDialog textarea { height: 118px; padding: 12px 13px 28px; resize: none; line-height: 1.55; }
+.reportDialog small { color: var(--muted); font-size: 11px; font-weight: 400; }
 
 .dialogActions {
   display: flex;
@@ -1107,6 +1202,12 @@ a.loginNotice:hover { color: var(--ink); text-decoration: underline; text-underl
   border-color: var(--danger);
   color: #fff;
   background: var(--danger);
+}
+
+.dialogActions .confirmButton {
+  border-color: var(--ink);
+  color: #fcfbf8;
+  background: var(--ink);
 }
 
 .trackDetailPage {
@@ -1232,9 +1333,140 @@ a.loginNotice:hover { color: var(--ink); text-decoration: underline; text-underl
 .detailRecommendation h2 { margin: 0; font-size: 23px; }
 .detailRecommendation blockquote { margin: 28px 0 20px; font-size: 22px; line-height: 1.65; }
 .detailHiddenComment { margin: 28px 0 20px; color: var(--muted); font-size: 14px; }
-.detailRecommender { display: flex; align-items: center; gap: 10px; }
+.detailRecommender { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.detailRecommender > div { display: flex; align-items: center; gap: 10px; }
 .detailRecommender strong { font-size: 13px; }
 .detailRecommender time { color: var(--muted); font-size: 11px; }
+
+.reportButton,
+.reportComplete {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.reportButton {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.reportButton:hover { color: var(--danger); }
+
+.adminPage {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 48px 0 96px;
+}
+
+.adminGate {
+  min-height: 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.adminHeader {
+  min-height: 150px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+  padding-bottom: 34px;
+  border-bottom: 1px solid var(--line-strong);
+}
+.adminHeader h1 { margin: 0; font-size: 38px; font-weight: 500; }
+.adminHeader > div > p:last-child { margin: 12px 0 0; color: var(--muted); font-size: 13px; }
+.adminHeader > svg { margin-top: 6px; }
+
+.adminSearch {
+  height: 52px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 28px 0;
+  padding-left: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--paper);
+}
+.adminSearch > svg { color: var(--muted); }
+.adminSearch input { min-width: 0; height: 100%; border: 0; outline: 0; color: var(--ink); background: transparent; box-shadow: none; }
+.adminSearch button { height: 100%; padding: 0 20px; border: 0; color: #fcfbf8; background: var(--ink); cursor: pointer; }
+.adminSuccess { margin: -10px 0 20px; color: var(--success); font-size: 13px; }
+
+.adminWorkspace {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  min-height: 520px;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+}
+.adminQueue { border-right: 1px solid var(--line-strong); }
+.adminSectionHeading { height: 58px; display: flex; align-items: center; justify-content: space-between; padding-right: 20px; border-bottom: 1px solid var(--line); }
+.adminSectionHeading h2 { margin: 0; font-size: 15px; }
+.adminSectionHeading span { color: var(--muted); font-size: 12px; }
+.adminEmpty { margin: 0; padding: 30px 20px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.adminUserList { display: grid; }
+.adminUserList button {
+  min-width: 0;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px 13px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.adminUserList button > span:first-child { min-width: 0; display: grid; gap: 4px; }
+.adminUserList strong,
+.adminUserList small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adminUserList strong { font-size: 13px; }
+.adminUserList small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.adminUserList .adminUserSelected { padding-left: 12px; background: var(--surface); }
+.adminReportCount { color: var(--danger); font-size: 11px; }
+
+.adminDetail { min-width: 0; padding-left: 28px; }
+.adminDetailEmpty { min-height: 518px; display: grid; place-items: center; align-content: center; gap: 9px; color: var(--muted); text-align: center; }
+.adminDetailEmpty strong { color: var(--ink); font-size: 14px; }
+.adminDetailEmpty span { font-size: 12px; }
+.adminDetailEmpty button { height: 34px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 5px; color: var(--ink); background: transparent; cursor: pointer; }
+.adminUserHeader { min-height: 120px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line-strong); }
+.adminUserHeader > div > span { color: var(--danger); font-size: 10px; font-weight: 500; }
+.adminUserHeader h2 { margin: 7px 0 4px; font-size: 24px; }
+.adminUserHeader p { margin: 0; color: var(--muted); font-size: 12px; }
+.adminUserHeader > strong { color: var(--danger); font-size: 12px; }
+.adminReportList { display: grid; }
+.adminReportItem { padding: 22px 0; border-bottom: 1px solid var(--line); }
+.adminReportItem > header,
+.adminReportItem > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 10px; }
+.adminReportItem > header > span { color: var(--danger); font-size: 11px; font-weight: 500; }
+.adminReportItem > a { display: grid; gap: 3px; width: fit-content; margin-top: 14px; }
+.adminReportItem > a strong { font-size: 14px; }
+.adminReportItem > a span { color: var(--muted); font-size: 11px; }
+.adminReportItem > a:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.adminReportItem blockquote { margin: 16px 0 8px; font-size: 16px; line-height: 1.6; }
+.adminReportItem > p { margin: 8px 0 14px; padding: 10px 12px; border-left: 2px solid var(--line-strong); color: var(--ink-soft); background: var(--surface-subtle); font-size: 12px; line-height: 1.6; }
+.adminReportItem > footer span { color: var(--ink-soft); }
+.adminModerationActions { display: flex; justify-content: flex-end; gap: 9px; padding: 24px 0; }
+.adminModerationActions button { height: 42px; display: inline-flex; align-items: center; gap: 7px; padding: 0 15px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: transparent; cursor: pointer; }
+.adminModerationActions .adminBanButton { border-color: var(--danger); color: #fff; background: var(--danger); }
+.adminConfirmDialog .dialogIcon { color: var(--ink); }
+.adminConfirmDialog .dangerButton { color: #fff; background: var(--danger); border-color: var(--danger); }
 
 .detailVoteBand {
   min-height: 112px;
@@ -1302,6 +1534,8 @@ a.loginNotice:hover { color: var(--ink); text-decoration: underline; text-underl
   .accountArea { gap: 0; }
   .accountArea .loginButton { max-width: 42px; overflow: hidden; }
   .main { width: min(100% - 32px, 620px); }
+  .notFoundPage { min-height: calc(100vh - 60px); padding: 48px 0 112px; }
+  .notFoundContent h1 { font-size: 28px; }
   .pageStack { padding: 28px 0 92px; }
   .intro { min-height: 250px; align-items: flex-start; flex-direction: column; padding: 22px 0 32px; }
   .intro h1 { font-size: 30px; }
@@ -1358,8 +1592,23 @@ a.loginNotice:hover { color: var(--ink); text-decoration: underline; text-underl
   .detailStats strong { font-size: 21px; }
   .detailRecommendation { padding: 34px 0; }
   .detailRecommendation blockquote { margin-top: 22px; font-size: 18px; }
+  .detailRecommender { align-items: flex-start; }
+  .detailRecommender > div { align-items: flex-start; flex-direction: column; gap: 4px; }
   .detailVoteBand { align-items: stretch; flex-direction: column; padding: 24px 0; }
   .detailVoteBand > a, .detailVoteBand > button { width: 100%; min-height: 44px; }
+  .adminPage { padding: 34px 0 112px; }
+  .adminHeader { min-height: 130px; }
+  .adminHeader h1 { font-size: 31px; }
+  .adminWorkspace { grid-template-columns: 1fr; border-top: 0; }
+  .adminQueue { border-right: 0; border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); }
+  .adminSectionHeading { padding-left: 0; }
+  .adminUserList button { padding-left: 0; }
+  .adminUserList .adminUserSelected { padding-left: 10px; }
+  .adminDetail { padding-left: 0; }
+  .adminDetailEmpty { min-height: 240px; }
+  .adminUserHeader { align-items: flex-start; flex-direction: column; justify-content: center; gap: 12px; }
+  .adminModerationActions { display: grid; grid-template-columns: 1fr 1fr; }
+  .adminModerationActions button { justify-content: center; }
   .mobileNav {
     display: block;
     position: fixed;

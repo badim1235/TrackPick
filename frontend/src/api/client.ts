@@ -19,6 +19,12 @@ export type DailyChartResponse = components['schemas']['DailyChartResponse']
 export type CreateRecommendationRequest = components['schemas']['CreateRecommendationRequest']
 export type CreateRecommendationResponse = components['schemas']['CreateRecommendationResponse']
 export type CreateVoteResponse = components['schemas']['CreateVoteResponse']
+export type CreateReportRequest = components['schemas']['CreateReportRequest']
+export type CreateReportResponse = components['schemas']['CreateReportResponse']
+export type FlaggedUsersResponse = components['schemas']['FlaggedUsersResponse']
+export type UserReportsResponse = components['schemas']['UserReportsResponse']
+export type ModerationRequest = components['schemas']['ModerationRequest']
+export type ModerationResult = components['schemas']['ModerationResult']
 
 export class ApiError extends Error {
   readonly code: string
@@ -170,6 +176,41 @@ export function createRecommendation(
 
 export function createVote(trackId: string): Promise<CreateVoteResponse> {
   return mutate(`/api/v1/tracks/${encodeURIComponent(trackId)}/votes`)
+}
+
+export function createReport(
+  recommendationId: string,
+  body: CreateReportRequest,
+): Promise<CreateReportResponse> {
+  return mutate(`/api/v1/recommendations/${encodeURIComponent(recommendationId)}/reports`, body)
+}
+
+export async function fetchFlaggedUsers(query = ''): Promise<FlaggedUsersResponse> {
+  const params = new URLSearchParams()
+  if (query) params.set('query', query)
+  const suffix = params.size ? `?${params}` : ''
+  const response = await fetch(`/api/v1/admin/reports/users${suffix}`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw await parseError(response)
+  return response.json() as Promise<FlaggedUsersResponse>
+}
+
+export async function fetchReportedUser(userId: string): Promise<UserReportsResponse> {
+  const response = await fetch(`/api/v1/admin/reports/users/${encodeURIComponent(userId)}`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw await parseError(response)
+  return response.json() as Promise<UserReportsResponse>
+}
+
+export function moderateReportedUser(
+  userId: string,
+  body: ModerationRequest,
+): Promise<ModerationResult> {
+  return mutate(`/api/v1/admin/reports/users/${encodeURIComponent(userId)}`, body, 'PATCH')
 }
 
 export function signUp(body: SignUpRequest): Promise<SignUpResponse> {

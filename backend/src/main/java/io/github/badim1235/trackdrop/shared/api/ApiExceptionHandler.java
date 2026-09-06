@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -104,6 +105,12 @@ public class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> report(ReportException exception) {
 		return ResponseEntity.status(exception.getStatus()).body(new ApiErrorResponse(new ApiError(
 			exception.getCode(), exception.getMessage(), Map.of())));
+	}
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	ResponseEntity<ApiErrorResponse> notFound() {
+		return ResponseEntity.status(404).body(new ApiErrorResponse(new ApiError(
+			"NOT_FOUND", "유효하지 않은 요청입니다.", Map.of())));
 	}
 
 	@ExceptionHandler(Exception.class)

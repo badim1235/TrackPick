@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Eye, EyeOff, KeyRound, LockKeyhole, LogIn, Trash2, UserPlus, X } from 'lucide-react'
+import { CircleHelp, Eye, EyeOff, KeyRound, LockKeyhole, LogIn, ShieldCheck, Trash2, UserPlus, X } from 'lucide-react'
 import { useState } from 'react'
 import { useForm, type UseFormRegisterReturn } from 'react-hook-form'
 import { NavLink, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
@@ -364,6 +364,12 @@ export function AccountPage() {
         <div><span>오늘의 추천</span><strong>{quota.used}/{quota.limit}</strong></div>
         <p>남은 추천권 {quota.remaining}회</p>
       </section>
+      {account.admin ? (
+        <NavLink className={styles.adminAccountLink} to="/admin">
+          <ShieldCheck aria-hidden="true" size={19} />
+          <span><strong>신고 관리</strong><small>검토가 필요한 신고 내역을 확인합니다.</small></span>
+        </NavLink>
+      ) : null}
       <div className={styles.accountActions}>
         <button className={styles.logoutButton} type="button" onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
           <LogIn aria-hidden="true" size={17} /> {logoutMutation.isPending ? '로그아웃 중...' : '로그아웃'}

@@ -72,6 +72,7 @@ public class AccountDeletionService {
 		jdbcClient.sql("""
 				DELETE FROM content_reports report
 				WHERE report.reporter_user_id = :userId
+				   OR report.reported_user_id = :userId
 				   OR EXISTS (
 				       SELECT 1
 				       FROM recommendations recommendation

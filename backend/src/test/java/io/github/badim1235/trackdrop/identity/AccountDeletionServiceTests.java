@@ -181,9 +181,13 @@ class AccountDeletionServiceTests {
 	private void insertReport(UUID reporterId, UUID recommendationId, OffsetDateTime now) {
 		jdbcClient.sql("""
 				INSERT INTO content_reports (
-					id, reporter_user_id, recommendation_id, reason_code, status, created_at
+					id, reporter_user_id, reported_user_id, recommendation_id,
+					reason_code, status, created_at
 				)
-				VALUES (:id, :reporterId, :recommendationId, 'OTHER', 'PENDING', :now)
+				SELECT :id, :reporterId, recommendation.recommender_user_id, :recommendationId,
+					'OTHER', 'PENDING', :now
+				FROM recommendations recommendation
+				WHERE recommendation.id = :recommendationId
 				""")
 			.param("id", UUID.randomUUID())
 			.param("reporterId", reporterId)

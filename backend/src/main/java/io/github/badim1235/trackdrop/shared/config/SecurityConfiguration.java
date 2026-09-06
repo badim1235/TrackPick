@@ -47,7 +47,7 @@ public class SecurityConfiguration {
 		AuthRateLimitFilter authRateLimitFilter,
 		RememberedSessionCookie rememberedSessionCookie,
 		SecurityContextRepository securityContextRepository,
-		@Value("${trackdrop.features.reports-enabled:false}") boolean reportsEnabled
+		@Value("${trackdrop.features.reports-enabled:true}") boolean reportsEnabled
 	) throws Exception {
 		CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
 		csrfRepository.setCookiePath("/");
@@ -55,9 +55,9 @@ public class SecurityConfiguration {
 		http
 			.authorizeHttpRequests(authorize -> {
 				authorize.requestMatchers(
-					"/", "/error", "/index.html", "/chart", "/recent", "/recommend", "/login", "/join", "/me",
+					"/", "/error", "/index.html", "/chart", "/recent", "/recommend", "/login", "/join", "/me", "/admin",
 					"/tracks/*",
-					"/recover/id", "/recover/password", "/assets/**", "/favicon.ico", "/favicon-64.png",
+					"/recover/password", "/assets/**", "/favicon.ico", "/favicon-64.png",
 					"/apple-touch-icon.png", "/trackpick-logo.png", "/og-image.png").permitAll();
 				authorize.requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll();
 				authorize.requestMatchers(HttpMethod.GET, "/api/v1/genres").permitAll();
@@ -73,6 +73,10 @@ public class SecurityConfiguration {
 					authorize.requestMatchers(
 						HttpMethod.POST, "/api/v1/recommendations/*/reports").permitAll();
 				}
+				authorize.requestMatchers(request ->
+					HttpMethod.GET.matches(request.getMethod())
+						&& !request.getRequestURI().startsWith("/api/")
+						&& !request.getRequestURI().startsWith("/actuator/")).permitAll();
 				authorize.anyRequest().authenticated();
 			})
 			.csrf(csrf -> {

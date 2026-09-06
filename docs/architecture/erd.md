@@ -42,7 +42,7 @@ Phase 5에서 기술 스택과 DB 제품을 결정하기 전이므로 물리적�
 | 일일 한도 | `daily_recommendation_quotas`의 사용자·날짜 행을 조건부 원자 업데이트해 4회를 넘지 못하게 한다. |
 | Ranking | `daily_rankings.rank`에 Vote 수와 Track 이름을 기준으로 계산한 고유 `ROW_NUMBER`를 저장한다. |
 | Batch | 날짜별 `ranking_runs` 상태가 `COMPLETED`일 때만 snapshot을 공개한다. |
-| 신고 | `content_reports`는 Recommendation의 한줄평을 대상으로 하며 동일 사용자 중복 신고를 막는다. MVP에서는 feature flag로 API와 UI를 비활성화한다. |
+| 신고 | `content_reports`는 Recommendation의 한줄평과 작성자를 함께 참조한다. 동일 사용자 중복 신고를 막고 미처리 신고 3건에 도달하면 작성자를 `FLAGGED`로 전환한다. |
 
 ## 4. 선택 이유와 Trade-off
 
@@ -123,6 +123,7 @@ erDiagram
         instant email_verified_at
         string public_nickname UK
         string status
+        string activity
         instant created_at
         instant updated_at
     }
@@ -217,12 +218,15 @@ erDiagram
     CONTENT_REPORTS {
         id id PK
         id reporter_user_id FK
+        id reported_user_id FK
         id recommendation_id FK
         string reason_code
         string details
         string status
         instant created_at
         instant resolved_at
+        id resolved_by_user_id FK
+        string resolution_action
     }
 ```
 
@@ -238,6 +242,7 @@ erDiagram
 | `email_verified_at` | Y | Supabase 이메일 확인 완료 시각 |
 | `public_nickname` | Y | 자동 생성 공개 닉네임, Unique |
 | `status` | Y | `ACTIVE`, `SUSPENDED`, `WITHDRAWN` 후보 |
+| `activity` | Y | 신고 검토 상태 `NORMAL`, `FLAGGED`, `BAN` |
 | `created_at` | Y | UTC instant |
 | `updated_at` | Y | UTC instant |
 
@@ -475,19 +480,24 @@ ROW_NUMBER() OVER (
 | --- | --- | --- |
 | `id` | Y | PK |
 | `reporter_user_id` | Y | FK -> users |
+| `reported_user_id` | Y | 한줄평 작성자 FK -> users |
 | `recommendation_id` | Y | FK -> recommendations |
 | `reason_code` | Y | 사전 정의된 신고 사유 |
 | `details` | N | 추가 설명, 최대 길이는 API 단계에서 결정 |
 | `status` | Y | `PENDING`, `REVIEWED`, `DISMISSED`, `ACTIONED` 후보 |
 | `created_at` | Y | UTC instant |
 | `resolved_at` | N | 처리 완료 시각 |
+| `resolved_by_user_id` | N | 조치한 관리자 FK -> users, 관리자 탈퇴 시 null |
+| `resolution_action` | N | `DISMISS`, `BAN` |
 
 주요 제약:
 
 - `UNIQUE(reporter_user_id, recommendation_id)`
-- 자기 Recommendation 신고 허용 여부는 Phase 4 API 정책에서 결정한다.
-- feature flag가 꺼진 MVP 기본 설정에서는 endpoint를 비활성화한다.
+- 자기 Recommendation과 차단된 사용자의 Recommendation은 신고할 수 없다.
+- 작성자의 미처리 신고가 기본 3건에 도달하면 `users.activity`를 `FLAGGED`로 전환한다.
 - 신고가 생성됐다는 사실만으로 한줄평을 자동 숨기지 않는다.
+- 관리자 무혐의 조치는 대기 신고를 `DISMISSED`로 종결하고 사용자를 `NORMAL`로 되돌린다.
+- 관리자 이용 제한은 대기 신고를 `ACTIONED`로 종결하고 사용자를 `BAN`·`SUSPENDED`로 전환하며 한줄평과 기존 세션을 회수한다.
 
 ## 7. 핵심 인덱스
 
@@ -503,6 +513,7 @@ PK와 Unique Constraint가 만드는 인덱스 외에 다음 인덱스를 권장
 | `tracks(isrc)` | ISRC 후보 검색. null과 중복 허용 |
 | `daily_rankings(ranking_date, scope_type, genre_id, rank)` | 과거 Top 50의 20곡 + 30곡 더 보기 |
 | `content_reports(status, created_at)` | 향후 운영 검토 queue |
+| `content_reports(reported_user_id, status, created_at DESC)` | 사용자별 미처리 신고 집계와 관리자 검토 목록 |
 
 오늘 추천 상위 홈은 `votes(voted_on, track_id)` 집계를 사용한다. 초기에는 별도 counter나 Redis 없이 시작하고, 실제 조회 부하가 확인되면 cache를 추가한다.
 

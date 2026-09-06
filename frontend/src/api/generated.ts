@@ -269,12 +269,49 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Report a recommendation comment when the hidden feature is enabled */
+        /** Report a recommendation comment */
         post: operations["createRecommendationReport"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/admin/reports/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search users waiting for report review */
+        get: operations["getFlaggedUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/reports/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        /** Read a user's report history */
+        get: operations["getReportedUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Dismiss pending reports or ban a flagged user */
+        patch: operations["moderateReportedUser"];
         trace?: never;
     };
     "/tracks/{trackId}/votes": {
@@ -348,6 +385,7 @@ export interface components {
             emailVerified: boolean;
             /** Format: date-time */
             createdAt: string;
+            admin: boolean;
         };
         DailyQuota: {
             /** Format: date */
@@ -538,6 +576,8 @@ export interface components {
             reason: "UNAUTHENTICATED" | "ALREADY_VOTED" | "DAILY_LIMIT_EXCEEDED" | "RECOMMENDATION_COOLDOWN" | null;
             /** Format: date */
             recommendationAvailableOn: string;
+            canReport: boolean;
+            hasReported: boolean;
         };
         DailyChartResponse: {
             /** Format: date */
@@ -652,6 +692,79 @@ export interface components {
             status: "PENDING";
             /** Format: date-time */
             createdAt: string;
+        };
+        FlaggedUsersResponse: {
+            items: components["schemas"]["FlaggedUser"][];
+        };
+        FlaggedUser: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            publicNickname: string;
+            /** @constant */
+            activity: "FLAGGED";
+            pendingReportCount: number;
+            /** Format: date-time */
+            firstReportedAt: string;
+            /** Format: date-time */
+            latestReportedAt: string;
+        };
+        UserReportsResponse: {
+            user: components["schemas"]["ReportedUser"];
+            reports: components["schemas"]["AdminReportRecord"][];
+        };
+        ReportedUser: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            publicNickname: string;
+            /** @enum {string} */
+            activity: "NORMAL" | "FLAGGED" | "BAN";
+            pendingReportCount: number;
+        };
+        AdminReportRecord: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            reasonCode: "ABUSIVE_LANGUAGE" | "SPAM" | "OTHER";
+            details: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "REVIEWED" | "DISMISSED" | "ACTIONED";
+            /** Format: date-time */
+            createdAt: string;
+            reporter: components["schemas"]["AdminReporter"];
+            recommendation: components["schemas"]["AdminRecommendation"];
+        };
+        AdminReporter: {
+            /** Format: uuid */
+            id: string;
+            publicNickname: string;
+        };
+        AdminRecommendation: {
+            /** Format: uuid */
+            id: string;
+            comment: string;
+            /** Format: uuid */
+            trackId: string;
+            trackTitle: string;
+            artistName: string;
+        };
+        ModerationRequest: {
+            /** @enum {string} */
+            action: "DISMISS" | "BAN";
+        };
+        ModerationResult: {
+            /** Format: uuid */
+            userId: string;
+            /** @enum {string} */
+            activity: "NORMAL" | "BAN";
+            /** @enum {string} */
+            accountStatus: "ACTIVE" | "SUSPENDED" | "WITHDRAWN";
+            resolvedReportCount: number;
+            /** Format: date-time */
+            resolvedAt: string;
         };
         CreateVoteResponse: {
             vote: components["schemas"]["Vote"];
@@ -1206,6 +1319,111 @@ export interface operations {
             401: components["responses"]["AuthenticationError"];
             403: components["responses"]["ForbiddenError"];
             /** @description The feature is disabled or the recommendation does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            409: components["responses"]["ConflictError"];
+        };
+    };
+    getFlaggedUsers: {
+        parameters: {
+            query?: {
+                query?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Flagged users ordered by pending report count. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlaggedUsersResponse"];
+                };
+            };
+            401: components["responses"]["AuthenticationError"];
+            /** @description Returned when the caller is not an administrator. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getReportedUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reported user and report history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserReportsResponse"];
+                };
+            };
+            401: components["responses"]["AuthenticationError"];
+            /** @description The caller is not an administrator or the user does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    moderateReportedUser: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["CsrfHeader"];
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Moderation action was applied. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationResult"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["AuthenticationError"];
+            403: components["responses"]["ForbiddenError"];
+            /** @description The caller is not an administrator or the user does not exist. */
             404: {
                 headers: {
                     [name: string]: unknown;

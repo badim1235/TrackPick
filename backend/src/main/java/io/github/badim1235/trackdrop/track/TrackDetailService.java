@@ -21,6 +21,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,8 +82,10 @@ class TrackDetailService {
 			genre.display_name AS genre_display_name,
 			genre.sort_order AS genre_sort_order,
 			first_recommendation.id AS recommendation_id,
+			first_recommendation.recommender_user_id AS recommendation_owner_id,
 			CASE WHEN first_recommendation.comment_visibility = 'VISIBLE' THEN first_recommendation.comment END AS comment,
 			CASE WHEN first_recommendation.comment_visibility = 'VISIBLE' THEN recommender.public_nickname END AS recommender_nickname,
+			recommender.activity AS recommender_activity,
 			first_recommendation.created_at AS recommendation_created_at,
 			latest_recommendation.recommended_on AS latest_recommended_on,
 			provider_ref.external_track_id,
@@ -104,7 +107,13 @@ class TrackDetailService {
 				FROM votes current_vote
 				WHERE current_vote.track_id = track.id
 				  AND current_vote.voted_on = :today
-			) AS in_current_chart
+			) AS in_current_chart,
+			EXISTS (
+				SELECT 1
+				FROM content_reports report
+				WHERE report.reporter_user_id = :viewerId
+				  AND report.recommendation_id = first_recommendation.id
+			) AS has_reported
 		FROM tracks track
 		JOIN LATERAL (
 			SELECT latest.id, latest.recommender_user_id, latest.primary_genre_id,
@@ -133,11 +142,18 @@ class TrackDetailService {
 	private final JdbcClient jdbcClient;
 	private final DailyQuotaService quotaService;
 	private final Clock clock;
+	private final boolean reportsEnabled;
 
-	TrackDetailService(JdbcClient jdbcClient, DailyQuotaService quotaService, Clock clock) {
+	TrackDetailService(
+		JdbcClient jdbcClient,
+		DailyQuotaService quotaService,
+		Clock clock,
+		@Value("${trackdrop.features.reports-enabled:true}") boolean reportsEnabled
+	) {
 		this.jdbcClient = jdbcClient;
 		this.quotaService = quotaService;
 		this.clock = clock;
+		this.reportsEnabled = reportsEnabled;
 	}
 
 	@Transactional(readOnly = true)
@@ -157,6 +173,11 @@ class TrackDetailService {
 		DailyQuotaSnapshot quota = authenticated ? quotaService.current(viewerId) : null;
 		Actions actions = actions(
 			authenticated,
+			viewerId,
+			row.recommendationOwnerId(),
+			row.comment() != null,
+			row.recommenderActivity(),
+			row.hasReported(),
 			row.hasVotedToday(),
 			row.inCurrentChart(),
 			row.latestRecommendedOn(),
@@ -219,8 +240,13 @@ class TrackDetailService {
 			.list();
 	}
 
-	private static Actions actions(
+	private Actions actions(
 		boolean authenticated,
+		UUID viewerId,
+		UUID recommendationOwnerId,
+		boolean commentAvailable,
+		String recommenderActivity,
+		boolean hasReported,
 		boolean hasVotedToday,
 		boolean inCurrentChart,
 		LocalDate latestRecommendedOn,
@@ -228,22 +254,28 @@ class TrackDetailService {
 		DailyQuotaSnapshot quota
 	) {
 		LocalDate availableOn = latestRecommendedOn.plusDays(3);
+		boolean canReport = reportsEnabled
+			&& authenticated
+			&& commentAvailable
+			&& !recommendationOwnerId.equals(viewerId)
+			&& !"BAN".equals(recommenderActivity)
+			&& !hasReported;
 		if (hasVotedToday) {
-			return new Actions(false, false, "ALREADY_VOTED", availableOn);
+			return new Actions(false, false, "ALREADY_VOTED", availableOn, canReport, hasReported);
 		}
 		if (!inCurrentChart && today.isBefore(availableOn)) {
-			return new Actions(false, false, "RECOMMENDATION_COOLDOWN", availableOn);
+			return new Actions(false, false, "RECOMMENDATION_COOLDOWN", availableOn, canReport, hasReported);
 		}
 		if (!authenticated) {
-			return new Actions(false, false, "UNAUTHENTICATED", availableOn);
+			return new Actions(false, false, "UNAUTHENTICATED", availableOn, false, false);
 		}
 		if (quota.remaining() == 0) {
-			return new Actions(false, false, "DAILY_LIMIT_EXCEEDED", availableOn);
+			return new Actions(false, false, "DAILY_LIMIT_EXCEEDED", availableOn, canReport, hasReported);
 		}
 		if (inCurrentChart) {
-			return new Actions(true, false, null, availableOn);
+			return new Actions(true, false, null, availableOn, canReport, hasReported);
 		}
-		return new Actions(false, true, null, availableOn);
+		return new Actions(false, true, null, availableOn, canReport, hasReported);
 	}
 
 	private static TrackRow mapRow(ResultSet row, int rowNumber) throws SQLException {
@@ -263,8 +295,10 @@ class TrackDetailService {
 				row.getString("genre_display_name"),
 				row.getInt("genre_sort_order")),
 			row.getObject("recommendation_id", UUID.class),
+			row.getObject("recommendation_owner_id", UUID.class),
 			row.getString("comment"),
 			row.getString("recommender_nickname"),
+			row.getString("recommender_activity"),
 			row.getObject("recommendation_created_at", OffsetDateTime.class).toInstant(),
 			row.getObject("latest_recommended_on", LocalDate.class),
 			row.getString("external_track_id"),
@@ -275,7 +309,8 @@ class TrackDetailService {
 			nullableLong(row, "overall_rank"),
 			nullableLong(row, "genre_rank"),
 			row.getBoolean("has_voted_today"),
-			row.getBoolean("in_current_chart"));
+			row.getBoolean("in_current_chart"),
+			row.getBoolean("has_reported"));
 	}
 
 	private static Long nullableLong(ResultSet row, String column) throws SQLException {
@@ -295,8 +330,10 @@ class TrackDetailService {
 		String providerGenreName,
 		Genre primaryGenre,
 		UUID recommendationId,
+		UUID recommendationOwnerId,
 		String comment,
 		String recommenderNickname,
+		String recommenderActivity,
 		Instant recommendationCreatedAt,
 		LocalDate latestRecommendedOn,
 		String externalTrackId,
@@ -307,7 +344,8 @@ class TrackDetailService {
 		Long overallRank,
 		Long genreRank,
 		boolean hasVotedToday,
-		boolean inCurrentChart
+		boolean inCurrentChart,
+		boolean hasReported
 	) {
 	}
 }

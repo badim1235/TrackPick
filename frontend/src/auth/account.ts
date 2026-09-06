@@ -3,11 +3,16 @@ import { fetchAccount } from '../api/client'
 
 export const accountQueryKey = ['account'] as const
 
-export function useAccount() {
+type AccountQueryOptions = {
+  fresh?: boolean
+}
+
+export function useAccount({ fresh = false }: AccountQueryOptions = {}) {
   return useQuery({
     queryKey: accountQueryKey,
     queryFn: fetchAccount,
     retry: false,
-    staleTime: 30_000,
+    staleTime: fresh ? 0 : 30_000,
+    refetchOnMount: fresh ? 'always' : true,
   })
 }

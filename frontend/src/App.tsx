@@ -2,11 +2,13 @@ import {
   BarChart3,
   CircleUserRound,
   Home,
+  House,
   LogIn,
   Sparkles,
 } from 'lucide-react'
 import { NavLink, Route, Routes, useLocation } from 'react-router'
 import styles from './App.module.css'
+import { AdminPage } from './admin/AdminPage'
 import { AccountPage, AccountRecoveryPage, JoinPage, LoginPage } from './auth/AuthPages'
 import { useAccount } from './auth/account'
 import { ChartPage } from './catalog/ChartPage'
@@ -54,6 +56,23 @@ function Navigation() {
   )
 }
 
+function NotFoundPage() {
+  return (
+    <section className={styles.notFoundPage}>
+      <div className={styles.notFoundContent}>
+        <img className={styles.notFoundLogo} src="/trackpick-logo.png" alt="" aria-hidden="true" />
+        <p className={styles.notFoundCode}>404</p>
+        <h1>유효하지 않은 요청입니다.</h1>
+        <p>주소가 잘못되었거나 페이지가 이동되었을 수 있습니다.</p>
+        <NavLink className={styles.notFoundHomeLink} to="/">
+          <House aria-hidden="true" size={17} />
+          홈으로 돌아가기
+        </NavLink>
+      </div>
+    </section>
+  )
+}
+
 function App() {
   return (
     <div className={styles.app}>
@@ -77,6 +96,8 @@ function App() {
           <Route path="/join" element={<JoinPage />} />
           <Route path="/recover/password" element={<AccountRecoveryPage />} />
           <Route path="/me" element={<AccountPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
 

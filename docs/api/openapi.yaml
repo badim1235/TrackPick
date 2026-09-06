@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: TrackDrop API
-  version: 0.9.0
-  description: Contract for the TrackDrop MVP HTTP API.
+  title: TrackPick API
+  version: 1.0.0
+  description: Contract for the TrackPick MVP HTTP API.
   license:
     name: MIT
     identifier: MIT
@@ -363,7 +363,7 @@ paths:
   /recommendations/{recommendationId}/reports:
     post:
       operationId: createRecommendationReport
-      summary: Report a recommendation comment when the hidden feature is enabled
+      summary: Report a recommendation comment
       tags: [Moderation]
       parameters:
         - name: recommendationId
@@ -394,6 +394,93 @@ paths:
           $ref: '#/components/responses/ForbiddenError'
         '404':
           description: The feature is disabled or the recommendation does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+  /admin/reports/users:
+    get:
+      operationId: getFlaggedUsers
+      summary: Search users waiting for report review
+      tags: [Moderation]
+      parameters:
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        '200':
+          description: Flagged users ordered by pending report count.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlaggedUsersResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationError'
+        '404':
+          description: Returned when the caller is not an administrator.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /admin/reports/users/{userId}:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getReportedUser
+      summary: Read a user's report history
+      tags: [Moderation]
+      responses:
+        '200':
+          description: Reported user and report history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserReportsResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationError'
+        '404':
+          description: The caller is not an administrator or the user does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+    patch:
+      operationId: moderateReportedUser
+      summary: Dismiss pending reports or ban a flagged user
+      tags: [Moderation]
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationRequest'
+      responses:
+        '200':
+          description: Moderation action was applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthenticationError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          description: The caller is not an administrator or the user does not exist.
           content:
             application/json:
               schema:
@@ -606,7 +693,7 @@ components:
     Account:
       type: object
       additionalProperties: false
-      required: [email, publicNickname, emailVerified, createdAt]
+      required: [email, publicNickname, emailVerified, createdAt, admin]
       properties:
         email:
           type: string
@@ -618,6 +705,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        admin:
+          type: boolean
     DailyQuota:
       type: object
       additionalProperties: false
@@ -1053,7 +1142,7 @@ components:
     TrackActions:
       type: object
       additionalProperties: false
-      required: [canVote, canRecommend, reason, recommendationAvailableOn]
+      required: [canVote, canRecommend, reason, recommendationAvailableOn, canReport, hasReported]
       properties:
         canVote:
           type: boolean
@@ -1065,6 +1154,10 @@ components:
         recommendationAvailableOn:
           type: string
           format: date
+        canReport:
+          type: boolean
+        hasReported:
+          type: boolean
     DailyChartResponse:
       type: object
       additionalProperties: false
@@ -1319,6 +1412,149 @@ components:
           type: string
           const: PENDING
         createdAt:
+          type: string
+          format: date-time
+    FlaggedUsersResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/FlaggedUser'
+    FlaggedUser:
+      type: object
+      additionalProperties: false
+      required: [id, email, publicNickname, activity, pendingReportCount, firstReportedAt, latestReportedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        publicNickname:
+          type: string
+        activity:
+          type: string
+          const: FLAGGED
+        pendingReportCount:
+          type: integer
+          minimum: 1
+        firstReportedAt:
+          type: string
+          format: date-time
+        latestReportedAt:
+          type: string
+          format: date-time
+    UserReportsResponse:
+      type: object
+      additionalProperties: false
+      required: [user, reports]
+      properties:
+        user:
+          $ref: '#/components/schemas/ReportedUser'
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminReportRecord'
+    ReportedUser:
+      type: object
+      additionalProperties: false
+      required: [id, email, publicNickname, activity, pendingReportCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        publicNickname:
+          type: string
+        activity:
+          type: string
+          enum: [NORMAL, FLAGGED, BAN]
+        pendingReportCount:
+          type: integer
+          minimum: 0
+    AdminReportRecord:
+      type: object
+      additionalProperties: false
+      required: [id, reasonCode, details, status, createdAt, reporter, recommendation]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reasonCode:
+          type: string
+          enum: [ABUSIVE_LANGUAGE, SPAM, OTHER]
+        details:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [PENDING, REVIEWED, DISMISSED, ACTIONED]
+        createdAt:
+          type: string
+          format: date-time
+        reporter:
+          $ref: '#/components/schemas/AdminReporter'
+        recommendation:
+          $ref: '#/components/schemas/AdminRecommendation'
+    AdminReporter:
+      type: object
+      additionalProperties: false
+      required: [id, publicNickname]
+      properties:
+        id:
+          type: string
+          format: uuid
+        publicNickname:
+          type: string
+    AdminRecommendation:
+      type: object
+      additionalProperties: false
+      required: [id, comment, trackId, trackTitle, artistName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        comment:
+          type: string
+        trackId:
+          type: string
+          format: uuid
+        trackTitle:
+          type: string
+        artistName:
+          type: string
+    ModerationRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [DISMISS, BAN]
+    ModerationResult:
+      type: object
+      additionalProperties: false
+      required: [userId, activity, accountStatus, resolvedReportCount, resolvedAt]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        activity:
+          type: string
+          enum: [NORMAL, BAN]
+        accountStatus:
+          type: string
+          enum: [ACTIVE, SUSPENDED, WITHDRAWN]
+        resolvedReportCount:
+          type: integer
+          minimum: 0
+        resolvedAt:
           type: string
           format: date-time
     CreateVoteResponse:

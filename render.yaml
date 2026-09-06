@@ -21,6 +21,12 @@ services:
         sync: false
       - key: SUPABASE_SECRET_KEY
         sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: REPORT_LIMIT
+        value: "3"
+      - key: REPORTS_ENABLED
+        value: "true"
       - key: SESSION_COOKIE_SECURE
         value: "true"
       - key: IP_HASH_SECRET

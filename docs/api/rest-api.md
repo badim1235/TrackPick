@@ -303,7 +303,10 @@ Path=/
 | POST | `/recommendations` | 필요 | Track 최초 또는 재추천 회차 생성 |
 | POST | `/tracks/{trackId}/votes` | 필요 | 기존 Track에 오늘 Vote |
 | GET | `/charts/daily` | 공개 | 오늘 live 또는 과거 final 차트 |
-| POST | `/recommendations/{recommendationId}/reports` | 필요, flag | 한줄평 신고 |
+| POST | `/recommendations/{recommendationId}/reports` | 필요 | 한줄평 신고 |
+| GET | `/admin/reports/users` | 관리자 | `FLAGGED` 사용자 검색 |
+| GET | `/admin/reports/users/{userId}` | 관리자 | 사용자별 신고 내역 조회 |
+| PATCH | `/admin/reports/users/{userId}` | 관리자 | 무혐의 또는 이용 제한 조치 |
 
 Ranking batch와 강제 재실행은 공개 REST API로 노출하지 않는다. scheduler와 권한이 제한된 운영 명령에서 동일 application service를 호출한다.
 
@@ -865,13 +868,7 @@ ROW_NUMBER(
 
 ### POST /recommendations/{recommendationId}/reports
 
-MVP 기본 설정:
-
-- feature flag off
-- route 존재를 추측하지 못하도록 `404 NOT_FOUND`
-- frontend에 신고 버튼을 렌더링하지 않음
-
-flag가 켜진 환경의 Request:
+Request:
 
 ```json
 {
@@ -896,8 +893,9 @@ Response `201 Created`:
 
 - 동일 사용자의 동일 Recommendation 중복 신고 불가
 - 자신의 Recommendation 신고 불가
+- 이미 `BAN` 처리된 사용자의 Recommendation 신고 불가
 - 신고 생성만으로 한줄평 자동 숨김 없음
-- 관리자 처리 endpoint와 UI는 MVP 제외
+- 작성자의 미처리 신고가 `REPORT_LIMIT`(기본 3)에 도달하면 `FLAGGED`로 전환
 
 오류:
 
@@ -905,6 +903,15 @@ Response `201 Created`:
 - `403 SELF_REPORT_NOT_ALLOWED`
 - `404 RECOMMENDATION_NOT_FOUND`
 - `409 ALREADY_REPORTED`
+- `409 REPORTED_USER_BANNED`
+
+### Admin report API
+
+- `GET /admin/reports/users?query=`는 `FLAGGED` 사용자만 닉네임·이메일로 검색한다.
+- `GET /admin/reports/users/{userId}`는 해당 사용자의 신고 사유, 설명, 신고자와 한줄평을 반환한다.
+- `PATCH /admin/reports/users/{userId}`에 `{"action":"DISMISS"}`를 보내면 대기 신고를 종결하고 사용자를 `NORMAL`로 되돌린다.
+- `PATCH /admin/reports/users/{userId}`에 `{"action":"BAN"}`을 보내면 계정을 `SUSPENDED`로 전환하고 세션과 모든 한줄평 노출을 회수한다.
+- 관리자 API는 로그인 여부와 별도로 `ADMIN_EMAILS` 서버 환경변수의 이메일 화이트리스트를 검사한다. 비관리자에게는 `404 NOT_FOUND`를 반환한다.
 
 ## 18. HTTP Status와 Error code
 
@@ -928,6 +935,8 @@ Response `201 Created`:
 | 409 | `ALREADY_VOTED` | 오늘 동일 Track 중복 Vote |
 | 409 | `RECOMMENDATION_REQUIRED` | 차트 밖의 곡에 새 한줄평 등록 필요 |
 | 409 | `ALREADY_REPORTED` | 동일 한줄평 중복 신고 |
+| 409 | `REPORTED_USER_BANNED` | 이미 이용 제한된 사용자 신고 |
+| 409 | `USER_NOT_FLAGGED` | 현재 관리자 조치 대상이 아닌 사용자 |
 | 429 | `DAILY_LIMIT_EXCEEDED` | 오늘의 추천 4회 소진 |
 | 429 | `RATE_LIMITED` | 보안 또는 provider 보호용 요청 제한 |
 | 503 | `MUSIC_PROVIDER_UNAVAILABLE` | 외부 Music API 장애 또는 timeout |
@@ -938,17 +947,18 @@ Response `201 Created`:
 
 ## 19. 권한 Matrix
 
-| 기능 | 비회원 | 인증 사용자 | 정지 사용자 |
-| --- | ---: | ---: | ---: |
-| 홈/Track/장르 조회 | O | O | O |
-| 오늘/과거 차트 조회 | O | O | O |
-| Preview/외부 링크 | O | O | O |
-| 외부 Music 검색 | X | O | X |
-| Recommendation 생성 | X | O | X |
-| 오늘 Vote | X | O | X |
-| 과거 차트에서 Vote | X | X | X |
-| Account 조회 | X | O | 제한된 상태만 허용 가능 |
-| 한줄평 신고 | X | flag on일 때 O | X |
+| 기능 | 비회원 | 인증 사용자 | 관리자 | 정지 사용자 |
+| --- | ---: | ---: | ---: | ---: |
+| 홈/Track/장르 조회 | O | O | O | O |
+| 오늘/과거 차트 조회 | O | O | O | O |
+| Preview/외부 링크 | O | O | O | O |
+| 외부 Music 검색 | X | O | O | X |
+| Recommendation 생성 | X | O | O | X |
+| 오늘 Vote | X | O | O | X |
+| 과거 차트에서 Vote | X | X | X | X |
+| Account 조회 | X | O | O | 제한된 상태만 허용 가능 |
+| 한줄평 신고 | X | O | O | X |
+| 신고 검토와 제재 | X | X | O | X |
 
 ## 20. 동시성과 Retry 계약
 

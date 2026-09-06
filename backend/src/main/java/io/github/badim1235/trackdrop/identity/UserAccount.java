@@ -32,6 +32,10 @@ public class UserAccount {
 	@Column(nullable = false, length = 20)
 	private AccountStatus status;
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	private UserActivity activity;
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
@@ -59,6 +63,10 @@ public class UserAccount {
 
 	public AccountStatus getStatus() {
 		return status;
+	}
+
+	public UserActivity getActivity() {
+		return activity;
 	}
 
 	public Instant getCreatedAt() {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -29,6 +29,17 @@ describe('TrackPick app shell', () => {
     expect(screen.getByRole('heading', { name: '오늘 발견한 음악을 공유해요.' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '오늘의 추천' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '로그인' })).toBeInTheDocument()
+  })
+
+  it('renders a dedicated page for an unknown address', () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }))
+
+    renderApp('/this-page-does-not-exist')
+
+    expect(screen.getByText('404')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '유효하지 않은 요청입니다.' })).toBeInTheDocument()
+    expect(screen.getByText('주소가 잘못되었거나 페이지가 이동되었을 수 있습니다.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/')
   })
 
   it('renders trending and recent tracks on the home feed', async () => {
@@ -292,6 +303,170 @@ describe('TrackPick app shell', () => {
     expect(await screen.findByText('최근 추천된 곡이에요.')).toBeInTheDocument()
     expect(screen.getByText('9월 4일부터 다시 추천할 수 있어요.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '추천 대기' })).toBeDisabled()
+  })
+
+  it('submits a one-line review report and marks it complete', async () => {
+    const trackId = '20000000-0000-0000-0000-000000000009'
+    const recommendationId = '30000000-0000-0000-0000-000000000009'
+    let reported = false
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/v1/me') {
+        return Response.json({
+          account: {
+            email: 'viewer@example.com', publicNickname: '새벽리듬4881',
+            emailVerified: true, createdAt: '2026-09-01T00:00:00Z', admin: false,
+          },
+          quota: { date: '2026-09-06', limit: 4, used: 0, remaining: 4, resetAt: '2026-09-06T15:00:00Z' },
+        })
+      }
+      if (url === `/api/v1/tracks/${trackId}`) {
+        return Response.json({
+          track: {
+            id: trackId, title: '신고 테스트 곡', artistName: '테스트 아티스트', albumName: null,
+            albumCoverUrl: null, releaseYear: null, isrc: null, explicit: false, providerGenreName: 'Rock',
+            primaryGenre: { id: '10000000-0000-0000-0000-000000000020', code: 'rock', displayName: 'Rock', sortOrder: 200 },
+            genres: [],
+            recommendation: {
+              id: recommendationId, comment: '확인이 필요한 한줄평', commentAvailable: true,
+              recommenderNickname: '푸른멜로디1934', createdAt: '2026-09-06T04:00:00Z',
+            },
+            viewer: { hasVotedToday: false },
+            preview: { available: false, provider: 'APPLE_MUSIC', kind: 'OFFICIAL_30_SECOND_CLIP', startPosition: 'PROVIDER_SELECTED', url: null },
+            providerReferences: [{ provider: 'APPLE_MUSIC', externalTrackId: 'report-track', externalUrl: null, metadataRefreshedAt: '2026-09-06T04:00:00Z' }],
+          },
+          today: { voteCount: 1, overallRank: 1, genreRank: 1, asOf: '2026-09-06T05:00:00Z' },
+          quota: { date: '2026-09-06', limit: 4, used: 0, remaining: 4, resetAt: '2026-09-06T15:00:00Z' },
+          actions: {
+            canVote: true, canRecommend: false, reason: null, recommendationAvailableOn: '2026-09-09',
+            canReport: !reported, hasReported: reported,
+          },
+        })
+      }
+      if (url === '/api/v1/auth/csrf') return Response.json({ token: 'csrf-token' })
+      if (url === `/api/v1/recommendations/${recommendationId}/reports` && init?.method === 'POST') {
+        expect(JSON.parse(String(init.body))).toEqual({
+          reasonCode: 'SPAM',
+          details: '반복 광고 문구입니다.',
+        })
+        reported = true
+        return Response.json({
+          report: { id: '40000000-0000-0000-0000-000000000009', status: 'PENDING', createdAt: '2026-09-06T05:10:00Z' },
+        }, { status: 201 })
+      }
+      return new Response('', { status: 404 })
+    })
+    const user = userEvent.setup()
+    renderApp(`/tracks/${trackId}`)
+
+    await user.click(await screen.findByRole('button', { name: '신고' }))
+    const dialog = screen.getByRole('dialog', { name: '한줄평 신고' })
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: '신고 사유' }), 'SPAM')
+    await user.type(within(dialog).getByRole('textbox', { name: /추가 설명/ }), '반복 광고 문구입니다.')
+    await user.click(within(dialog).getByRole('button', { name: '신고하기' }))
+
+    expect(await screen.findByText('신고 완료')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/v1/recommendations/${recommendationId}/reports`,
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('lets an administrator review and ban a flagged user', async () => {
+    const targetId = '50000000-0000-0000-0000-000000000001'
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/v1/me') {
+        return Response.json({
+          account: {
+            email: 'admin@example.com', publicNickname: '관리자',
+            emailVerified: true, createdAt: '2026-09-01T00:00:00Z', admin: true,
+          },
+          quota: { date: '2026-09-06', limit: 4, used: 0, remaining: 4, resetAt: '2026-09-06T15:00:00Z' },
+        })
+      }
+      if (url === '/api/v1/admin/reports/users') {
+        return Response.json({
+          items: [{
+            id: targetId, email: 'target@example.com', publicNickname: '검토대상', activity: 'FLAGGED',
+            pendingReportCount: 3, firstReportedAt: '2026-09-06T01:00:00Z', latestReportedAt: '2026-09-06T03:00:00Z',
+          }],
+        })
+      }
+      if (url === `/api/v1/admin/reports/users/${targetId}` && init?.method !== 'PATCH') {
+        return Response.json({
+          user: { id: targetId, email: 'target@example.com', publicNickname: '검토대상', activity: 'FLAGGED', pendingReportCount: 3 },
+          reports: [{
+            id: '60000000-0000-0000-0000-000000000001', reasonCode: 'ABUSIVE_LANGUAGE',
+            details: '비방 표현이 있습니다.', status: 'PENDING', createdAt: '2026-09-06T03:00:00Z',
+            reporter: { id: '70000000-0000-0000-0000-000000000001', publicNickname: '신고자' },
+            recommendation: {
+              id: '80000000-0000-0000-0000-000000000001', comment: '확인이 필요한 한줄평',
+              trackId: '20000000-0000-0000-0000-000000000001', trackTitle: '검토할 곡', artistName: '아티스트',
+            },
+          }],
+        })
+      }
+      if (url === '/api/v1/auth/csrf') return Response.json({ token: 'csrf-token' })
+      if (url === `/api/v1/admin/reports/users/${targetId}` && init?.method === 'PATCH') {
+        expect(JSON.parse(String(init.body))).toEqual({ action: 'BAN' })
+        return Response.json({
+          userId: targetId, activity: 'BAN', accountStatus: 'SUSPENDED',
+          resolvedReportCount: 3, resolvedAt: '2026-09-06T04:00:00Z',
+        })
+      }
+      return new Response('', { status: 404 })
+    })
+    const user = userEvent.setup()
+    renderApp('/admin')
+
+    await user.click(await screen.findByRole('button', { name: /검토대상/ }))
+    expect(await screen.findByText(/확인이 필요한 한줄평/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '이용 제한' }))
+    const dialog = screen.getByRole('dialog', { name: '이용을 제한할까요?' })
+    await user.click(within(dialog).getByRole('button', { name: '이용 제한' }))
+
+    expect(await screen.findByText('이용 제한 조치를 완료했습니다.')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/v1/admin/reports/users/${targetId}`,
+      expect.objectContaining({ method: 'PATCH' }),
+    )
+  })
+
+  it('rechecks cached admin access and hides the page from a regular user', async () => {
+    const cachedAdmin = {
+      account: {
+        email: 'admin@example.com', publicNickname: '관리자',
+        emailVerified: true, createdAt: '2026-09-01T00:00:00Z', admin: true,
+      },
+      quota: { date: '2026-09-06', limit: 4, used: 0, remaining: 4, resetAt: '2026-09-06T15:00:00Z' },
+    }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url === '/api/v1/me') {
+        return Response.json({
+          account: {
+            email: 'regular@example.com', publicNickname: '일반사용자',
+            emailVerified: true, createdAt: '2026-09-01T00:00:00Z', admin: false,
+          },
+          quota: { date: '2026-09-06', limit: 4, used: 0, remaining: 4, resetAt: '2026-09-06T15:00:00Z' },
+        })
+      }
+      return new Response('', { status: 404 })
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(['account'], cachedAdmin)
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/admin']}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByRole('heading', { name: '유효하지 않은 요청입니다.' })).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/v1/admin/reports/users', expect.anything())
   })
 
   it('renders registered tracks from the live daily chart', async () => {

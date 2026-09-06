@@ -42,11 +42,15 @@ public class AuthSessionService {
 		if (currentSession != null) {
 			currentSession.invalidate();
 		}
+		revokeAll(principalName);
+		SecurityContextHolder.clearContext();
+		rememberedCookie.clear(response);
+	}
+
+	public void revokeAll(String principalName) {
 		sessionRepository.findByPrincipalName(principalName)
 			.keySet()
 			.forEach(sessionRepository::deleteById);
-		SecurityContextHolder.clearContext();
-		rememberedCookie.clear(response);
 	}
 
 	public TrackDropPrincipal establish(

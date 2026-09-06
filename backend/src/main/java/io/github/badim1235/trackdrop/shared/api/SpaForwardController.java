@@ -1,5 +1,7 @@
 package io.github.badim1235.trackdrop.shared.api;
 
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 
@@ -11,10 +13,19 @@ public class SpaForwardController {
 	}
 
 	@GetMapping({
-		"/chart", "/recent", "/recommend", "/login", "/join", "/me",
-		"/recover/id", "/recover/password", "/tracks/{trackId}"
+		"/chart", "/recent", "/recommend", "/login", "/join", "/me", "/admin",
+		"/recover/password", "/tracks/{trackId}"
 	})
 	String forwardToIndex() {
+		return "forward:/index.html";
+	}
+
+	@GetMapping({
+		"/{path:(?!api|actuator|assets)[^\\.]+}",
+		"/{path:(?!api|actuator|assets)[^\\.]+}/{*remaining}"
+	})
+	String forwardUnknownRoute(HttpServletResponse response) {
+		response.setStatus(HttpStatus.NOT_FOUND.value());
 		return "forward:/index.html";
 	}
 }

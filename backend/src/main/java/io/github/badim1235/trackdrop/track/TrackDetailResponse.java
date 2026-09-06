@@ -74,7 +74,9 @@ public record TrackDetailResponse(
 		boolean canVote,
 		boolean canRecommend,
 		String reason,
-		LocalDate recommendationAvailableOn
+		LocalDate recommendationAvailableOn,
+		boolean canReport,
+		boolean hasReported
 	) {
 	}
 }

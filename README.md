@@ -45,7 +45,8 @@ Phase 13까지 구현되어 계정 인증부터 Apple 음악 검색, 곡 추천,
 - 홈·최근 목록의 미리듣기, Apple 링크와 추천권 연동
 - 홈·차트·검색 결과에서 이어지는 공개 곡 상세 화면
 - 곡 상세의 오늘 득표수, 전체·장르 순위, 한줄평, 미리듣기와 추천권 연동
-- 동일 사용자 중복·자기 신고를 막는 한줄평 신고 API와 저장 구조 (`REPORTS_ENABLED=false`로 기본 숨김)
+- 동일 사용자 중복·자기 신고를 막는 한줄평 신고와 신고 누적 시 자동 검토 대상 전환
+- 관리자 전용 신고 검색·상세·무혐의·이용 제한 화면과 차단 사용자 세션 회수
 
 ## 로컬 실행
 
@@ -69,9 +70,9 @@ npm run dev
 
 프로젝트 루트의 `.env`에 Supabase Auth 설정이 준비되어 있다면 `.\scripts\run-local.ps1`로 로컬 PostgreSQL에 연결한 백엔드를 실행할 수 있습니다. Supabase PostgreSQL 연결 자체를 확인할 때만 `.\scripts\run-local.ps1 -UseConfiguredDatabase`를 사용합니다.
 
-운영 환경에서는 Spring datasource를 Supabase PostgreSQL 연결 정보로 설정하고 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `AUTH_EMAIL_REDIRECT_URL`, `AUTH_PASSWORD_RECOVERY_REDIRECT_URL`, `IP_HASH_SECRET`, `SESSION_COOKIE_SECURE=true`를 별도로 설정합니다. `SUPABASE_SECRET_KEY`는 회원 탈퇴 시 Auth 사용자를 삭제하는 서버 전용 키이므로 프런트엔드나 저장소에 노출하면 안 됩니다. 실제 이메일 발송에는 Supabase Custom SMTP 설정을 권장합니다. Docker Desktop이 실행 중이어야 로컬 PostgreSQL과 Testcontainers 기반 통합 테스트를 사용할 수 있습니다.
+운영 환경에서는 Spring datasource를 Supabase PostgreSQL 연결 정보로 설정하고 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `AUTH_EMAIL_REDIRECT_URL`, `AUTH_PASSWORD_RECOVERY_REDIRECT_URL`, `IP_HASH_SECRET`, `SESSION_COOKIE_SECURE=true`, `ADMIN_EMAILS`를 별도로 설정합니다. `ADMIN_EMAILS`에는 관리자 권한을 부여할 TrackPick 가입 이메일을 쉼표로 구분해 입력하며, 신고 검토 기준은 `REPORT_LIMIT`으로 조정할 수 있습니다. `SUPABASE_SECRET_KEY`는 회원 탈퇴 시 Auth 사용자를 삭제하는 서버 전용 키이므로 프런트엔드나 저장소에 노출하면 안 됩니다. 실제 이메일 발송에는 Supabase Custom SMTP 설정을 권장합니다. Docker Desktop이 실행 중이어야 로컬 PostgreSQL과 Testcontainers 기반 통합 테스트를 사용할 수 있습니다.
 
-한줄평 신고 기능은 저장 구조와 API만 준비되어 있으며 기본값은 비활성입니다. 운영 정책과 검토 절차를 마련한 뒤에만 `REPORTS_ENABLED=true`로 켜며, 현재 프런트엔드에는 신고 진입점을 노출하지 않습니다.
+한줄평 신고 기능은 기본 활성 상태입니다. 미처리 신고 3건에 도달하면 사용자가 검토 대상으로 전환되며, 관리자는 내 계정의 `신고 관리`에서 무혐의 또는 이용 제한을 결정합니다. 긴급 비활성화가 필요할 때만 `REPORTS_ENABLED=false`를 사용합니다.
 
 ## Render 배포
 

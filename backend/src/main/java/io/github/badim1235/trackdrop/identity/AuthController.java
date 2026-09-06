@@ -1,5 +1,6 @@
 package io.github.badim1235.trackdrop.identity;
 
+import io.github.badim1235.trackdrop.moderation.AdminAccessPolicy;
 import io.github.badim1235.trackdrop.shared.quota.DailyQuotaService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,6 +28,7 @@ public class AuthController {
 	private final AuthRateLimiter rateLimiter;
 	private final ClientIpHasher ipHasher;
 	private final DailyQuotaService quotaService;
+	private final AdminAccessPolicy adminAccessPolicy;
 
 	public AuthController(
 		IdentityService identityService,
@@ -35,7 +37,8 @@ public class AuthController {
 		SupabaseUserDirectory supabaseUsers,
 		AuthRateLimiter rateLimiter,
 		ClientIpHasher ipHasher,
-		DailyQuotaService quotaService
+		DailyQuotaService quotaService,
+		AdminAccessPolicy adminAccessPolicy
 	) {
 		this.identityService = identityService;
 		this.authSessionService = authSessionService;
@@ -44,6 +47,7 @@ public class AuthController {
 		this.rateLimiter = rateLimiter;
 		this.ipHasher = ipHasher;
 		this.quotaService = quotaService;
+		this.adminAccessPolicy = adminAccessPolicy;
 	}
 
 	@GetMapping("/csrf")
@@ -80,7 +84,8 @@ public class AuthController {
 			account, body.rememberMe(), request, response);
 		return AccountResponse.from(
 			identityService.account(principal.userId()),
-			quotaService.current(principal.userId()));
+			quotaService.current(principal.userId()),
+			adminAccessPolicy.isAdmin(principal));
 	}
 
 	@PostMapping("/password-recovery")

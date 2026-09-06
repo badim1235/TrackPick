@@ -23,7 +23,10 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest(properties = "trackdrop.features.reports-enabled=true")
+@SpringBootTest(properties = {
+	"trackdrop.features.reports-enabled=true",
+	"trackdrop.moderation.report-limit=2"
+})
 @AutoConfigureMockMvc
 class ReportControllerTests {
 	@Autowired
@@ -85,6 +88,49 @@ class ReportControllerTests {
 		mockMvc.perform(reportRequest(reporterId, recommendationId))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.error.code").value("ALREADY_REPORTED"));
+	}
+
+	@Test
+	void flagsTheReportedUserWhenPendingReportsReachTheLimit() throws Exception {
+		UUID ownerId = insertUser("owner");
+		UUID firstReporterId = insertUser("reporter-one");
+		UUID secondReporterId = insertUser("reporter-two");
+		UUID firstRecommendationId = insertRecommendation(ownerId);
+		UUID secondRecommendationId = insertRecommendation(ownerId);
+
+		mockMvc.perform(reportRequest(firstReporterId, firstRecommendationId))
+			.andExpect(status().isCreated());
+		mockMvc.perform(reportRequest(secondReporterId, secondRecommendationId))
+			.andExpect(status().isCreated());
+
+		String activity = jdbcClient.sql("SELECT activity FROM users WHERE id = :id")
+			.param("id", ownerId)
+			.query(String.class)
+			.single();
+		org.assertj.core.api.Assertions.assertThat(activity).isEqualTo("FLAGGED");
+	}
+
+	@Test
+	void rejectsReportsAgainstBannedUsers() throws Exception {
+		UUID ownerId = insertUser("owner");
+		UUID reporterId = insertUser("reporter");
+		UUID recommendationId = insertRecommendation(ownerId);
+		jdbcClient.sql("UPDATE users SET activity = 'BAN', status = 'SUSPENDED' WHERE id = :id")
+			.param("id", ownerId)
+			.update();
+
+		mockMvc.perform(reportRequest(reporterId, recommendationId))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.error.code").value("REPORTED_USER_BANNED"));
+	}
+
+	@Test
+	void rejectsReportsAgainstMissingRecommendations() throws Exception {
+		UUID reporterId = insertUser("reporter");
+
+		mockMvc.perform(reportRequest(reporterId, UUID.randomUUID()))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.error.code").value("RECOMMENDATION_NOT_FOUND"));
 	}
 
 	private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder reportRequest(

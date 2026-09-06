@@ -1,5 +1,6 @@
 package io.github.badim1235.trackdrop.identity;
 
+import io.github.badim1235.trackdrop.moderation.AdminAccessPolicy;
 import io.github.badim1235.trackdrop.shared.quota.DailyQuotaService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -21,24 +22,28 @@ public class AccountController {
 	private final DailyQuotaService quotaService;
 	private final AccountDeletionService accountDeletionService;
 	private final AuthSessionService authSessionService;
+	private final AdminAccessPolicy adminAccessPolicy;
 
 	public AccountController(
 		IdentityService identityService,
 		DailyQuotaService quotaService,
 		AccountDeletionService accountDeletionService,
-		AuthSessionService authSessionService
+		AuthSessionService authSessionService,
+		AdminAccessPolicy adminAccessPolicy
 	) {
 		this.identityService = identityService;
 		this.quotaService = quotaService;
 		this.accountDeletionService = accountDeletionService;
 		this.authSessionService = authSessionService;
+		this.adminAccessPolicy = adminAccessPolicy;
 	}
 
 	@GetMapping
 	AccountResponse me(@AuthenticationPrincipal TrackDropPrincipal principal) {
 		return AccountResponse.from(
 			identityService.account(principal.userId()),
-			quotaService.current(principal.userId()));
+			quotaService.current(principal.userId()),
+			adminAccessPolicy.isAdmin(principal));
 	}
 
 	@DeleteMapping

@@ -33,10 +33,13 @@ server:
 
 trackdrop:
   features:
-    reports-enabled: ${REPORTS_ENABLED:false}
+    reports-enabled: ${REPORTS_ENABLED:true}
+  moderation:
+    report-limit: ${REPORT_LIMIT:3}
   ranking:
     cron: "${RANKING_SNAPSHOT_CRON:0 0 0 * * *}"
   security:
+    admin-emails: ${ADMIN_EMAILS:}
     ip-hash-secret: ${IP_HASH_SECRET:trackdrop-local-development-secret}
     remember-me-seconds: 604800
   supabase:
