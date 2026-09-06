@@ -18,6 +18,7 @@ Phase 13까지 구현되어 계정 인증부터 Apple 음악 검색, 곡 추천,
 - 가입 확인 메일과 비밀번호 재설정 메일 요청
 - 고유한 한국어 익명 닉네임 자동 생성
 - PostgreSQL server session 기반 로그인·로그아웃과 CSRF 보호
+- Supabase `public` 함수의 `anon`·`authenticated` 실행 권한과 향후 자동 부여 차단
 - 여러 기기 동시 로그인과 선택형 7일 로그인 유지
 - 내 계정 이메일과 오늘의 추천권 조회
 - IP별 인증 요청 및 계정 생성 제한
