@@ -70,15 +70,21 @@ final class AppleItunesClient implements MusicCatalogProvider {
 				track -> track,
 				(first, ignored) -> first));
 		return fallbackTracks.stream()
-			.map(track -> localizedTracks.get(track.externalTrackId()))
-			.filter(java.util.Objects::nonNull)
+			.map(track -> localizedTracks.getOrDefault(track.externalTrackId(), track))
 			.toList();
 	}
 
 	@Override
 	public Optional<MusicCatalogTrack> lookup(String externalTrackId) {
-		return findById(
+		Optional<MusicCatalogTrack> localizedTrack = findById(
 			fetch(lookupUri(externalTrackId, properties.storefront())),
+			externalTrackId);
+		if (localizedTrack.isPresent()
+			|| DISCOVERY_FALLBACK_STOREFRONT.equalsIgnoreCase(properties.storefront())) {
+			return localizedTrack;
+		}
+		return findById(
+			fetch(lookupUri(externalTrackId, DISCOVERY_FALLBACK_STOREFRONT)),
 			externalTrackId);
 	}
 

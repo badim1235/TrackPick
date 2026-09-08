@@ -179,6 +179,44 @@ class AppleItunesClientTests {
 	}
 
 	@Test
+	void preservesUsDiscoveryResultsMissingFromTheKrLookup() {
+		RestClient.Builder builder = RestClient.builder().baseUrl("https://itunes.apple.com");
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		AppleItunesClient client = new AppleItunesClient(
+			builder.build(),
+			properties(),
+			new ProviderCallRateLimiter(15, Clock.systemUTC()),
+			new ObjectMapper());
+
+		server.expect(requestTo(
+			"https://itunes.apple.com/search?term=KiiiKiii&country=KR&media=music&entity=song&limit=20&explicit=Yes&lang=en_us"))
+			.andRespond(withSuccess("{\"resultCount\":0,\"results\":[]}", MediaType.APPLICATION_JSON));
+		server.expect(requestTo(
+			"https://itunes.apple.com/search?term=KiiiKiii&country=US&media=music&entity=song&limit=20&explicit=Yes&lang=en_us"))
+			.andRespond(withSuccess("""
+				{"results":[{
+				  "kind":"song",
+				  "trackId":1795471747,
+				  "trackName":"I DO ME",
+				  "artistName":"KiiiKiii",
+				  "previewUrl":"https://example.com/i-do-me.m4a"
+				}]}
+				""", MediaType.APPLICATION_JSON));
+		server.expect(requestTo(
+			"https://itunes.apple.com/lookup?id=1795471747&country=KR&entity=song&lang=en_us"))
+			.andRespond(withSuccess("{\"resultCount\":0,\"results\":[]}", MediaType.APPLICATION_JSON));
+
+		assertThat(client.search("KiiiKiii"))
+			.singleElement()
+			.extracting(
+				MusicCatalogTrack::title,
+				MusicCatalogTrack::artistName,
+				MusicCatalogTrack::previewUrl)
+			.containsExactly("I DO ME", "KiiiKiii", "https://example.com/i-do-me.m4a");
+		server.verify();
+	}
+
+	@Test
 	void looksUpTheSelectedTrackBeforeRecommendation() {
 		RestClient.Builder builder = RestClient.builder().baseUrl("https://itunes.apple.com");
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -210,7 +248,7 @@ class AppleItunesClientTests {
 	}
 
 	@Test
-	void doesNotReturnANonKrTrackWhenTheKrLookupIsEmpty() {
+	void fallsBackToTheUsTrackWhenTheKrLookupIsEmpty() {
 		RestClient.Builder builder = RestClient.builder().baseUrl("https://itunes.apple.com");
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		AppleItunesClient client = new AppleItunesClient(
@@ -222,7 +260,22 @@ class AppleItunesClientTests {
 		server.expect(requestTo(
 			"https://itunes.apple.com/lookup?id=1828393595&country=KR&entity=song&lang=en_us"))
 			.andRespond(withSuccess("{\"resultCount\":0,\"results\":[]}", MediaType.APPLICATION_JSON));
-		assertThat(client.lookup("1828393595")).isEmpty();
+		server.expect(requestTo(
+			"https://itunes.apple.com/lookup?id=1828393595&country=US&entity=song&lang=en_us"))
+			.andRespond(withSuccess("""
+				{"results":[{
+				  "kind":"song",
+				  "trackId":1828393595,
+				  "trackName":"0+0",
+				  "artistName":"HANRORO"
+				}]}
+				""", MediaType.APPLICATION_JSON));
+
+		assertThat(client.lookup("1828393595"))
+			.hasValueSatisfying(track -> {
+				assertThat(track.title()).isEqualTo("0+0");
+				assertThat(track.artistName()).isEqualTo("HANRORO");
+			});
 		server.verify();
 	}
 
