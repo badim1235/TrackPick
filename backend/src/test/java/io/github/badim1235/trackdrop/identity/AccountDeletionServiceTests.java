@@ -60,7 +60,7 @@ class AccountDeletionServiceTests {
 		insertVote(otherUserId, withdrawnTrackId, withdrawnDate, now);
 		insertVote(userId, retainedTrackId, retainedDate, now);
 		insertReport(userId, retainedRecommendationId, now);
-		insertReport(otherUserId, withdrawnRecommendationId, now);
+		UUID resolvedReportId = insertResolvedReport(otherUserId, withdrawnRecommendationId, now);
 		insertRanking(withdrawnTrackId, withdrawnDate, now);
 		jdbcClient.sql("""
 				INSERT INTO daily_recommendation_quotas (user_id, quota_date, daily_limit, used_count, updated_at)
@@ -84,6 +84,15 @@ class AccountDeletionServiceTests {
 		assertThat(count("votes", "user_id", userId)).isZero();
 		assertThat(count("content_reports", "reporter_user_id", userId)).isZero();
 		assertThat(count("content_reports", "recommendation_id", withdrawnRecommendationId)).isZero();
+		assertThat(count("content_reports", "id", resolvedReportId)).isOne();
+		assertThat(jdbcClient.sql("""
+				SELECT recommendation_id IS NULL AND reported_user_id IS NULL
+				FROM content_reports
+				WHERE id = :id
+				""")
+			.param("id", resolvedReportId)
+			.query(Boolean.class)
+			.single()).isTrue();
 		assertThat(count("daily_rankings", "track_id", withdrawnTrackId)).isZero();
 		assertThat(count("daily_recommendation_quotas", "user_id", userId)).isZero();
 		assertThat(count("tracks", "id", withdrawnTrackId)).isZero();
@@ -194,6 +203,27 @@ class AccountDeletionServiceTests {
 			.param("recommendationId", recommendationId)
 			.param("now", now)
 			.update();
+	}
+
+	private UUID insertResolvedReport(UUID reporterId, UUID recommendationId, OffsetDateTime now) {
+		UUID reportId = UUID.randomUUID();
+		jdbcClient.sql("""
+				INSERT INTO content_reports (
+					id, reporter_user_id, reported_user_id, recommendation_id,
+					reason_code, status, created_at, resolved_at,
+					resolved_by_user_id, resolution_action
+				)
+				SELECT :id, :reporterId, recommendation.recommender_user_id, :recommendationId,
+					'OTHER', 'DISMISSED', :now, :now, :reporterId, 'DISMISS'
+				FROM recommendations recommendation
+				WHERE recommendation.id = :recommendationId
+				""")
+			.param("id", reportId)
+			.param("reporterId", reporterId)
+			.param("recommendationId", recommendationId)
+			.param("now", now)
+			.update();
+		return reportId;
 	}
 
 	private void insertRanking(UUID trackId, LocalDate date, OffsetDateTime now) {

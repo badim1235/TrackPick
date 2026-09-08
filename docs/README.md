@@ -8,6 +8,8 @@
 | --- | --- | --- |
 | [`00-project-baseline.md`](00-project-baseline.md) | 서비스명, 추천권, 장르, 랭킹, preview 등 확정된 MVP 제품 정책의 단일 기준 | Accepted |
 | [`product/user-flows.md`](product/user-flows.md) | 화면 구조, 사용자 행동, UI 상태와 오류 복구 | Accepted |
+| [`product/post-mvp-backlog.md`](product/post-mvp-backlog.md) | 사용자 피드백을 바탕으로 한 MVP 이후 제품 후보와 미확정 논의 사항 | Proposed |
+| [`operations/pre-launch-checklist.md`](operations/pre-launch-checklist.md) | 출시 전 필수 보강, 운영 작업과 사용자 결정 사항 | In progress |
 | [`architecture/erd.md`](architecture/erd.md) | Entity, 관계, DB 제약, 트랜잭션과 Ranking snapshot | Accepted |
 | [`architecture/tech-stack.md`](architecture/tech-stack.md) | Phase 5 언어, framework, DB, 보안, 테스트와 배포 단위 | Accepted |
 | [`api/rest-api.md`](api/rest-api.md) | HTTP endpoint, request/response, 오류와 pagination 계약 | Accepted, OpenAPI 우선 |
@@ -54,5 +56,5 @@
 | 11 | 오늘 전체·장르별 실시간 차트·Top 20 더 보기 | 완료 |
 | 12 | 홈의 오늘 추천·최근 등록 데이터 연결 | 완료 |
 | 13 | 과거 Daily Ranking snapshot·읽기 전용 차트 | 완료 |
-| 14 | 배포·운영 설정 | 대기 |
-| 15 | 포트폴리오 문서·최종 검수 | 대기 |
+| 14 | 배포·운영 설정 | 완료, 출시 전 보강 진행 중 |
+| 15 | 포트폴리오 문서·최종 검수 | 진행 중 |

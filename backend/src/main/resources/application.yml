@@ -1,6 +1,6 @@
 spring:
   application:
-    name: TrackDrop
+    name: TrackPick
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/trackdrop}
     username: ${POSTGRES_USER:trackdrop}
@@ -38,6 +38,8 @@ trackdrop:
     report-limit: ${REPORT_LIMIT:3}
   ranking:
     cron: "${RANKING_SNAPSHOT_CRON:0 0 0 * * *}"
+  retention:
+    cron: "${DATA_RETENTION_CRON:0 */5 * * * *}"
   security:
     admin-emails: ${ADMIN_EMAILS:}
     ip-hash-secret: ${IP_HASH_SECRET:trackdrop-local-development-secret}
@@ -52,7 +54,6 @@ trackdrop:
     apple:
       base-url: ${APPLE_ITUNES_BASE_URL:https://itunes.apple.com}
       storefront: KR
-      fallback-storefront: US
       result-limit: 20
       calls-per-minute: 15
       cache-ttl: 5m

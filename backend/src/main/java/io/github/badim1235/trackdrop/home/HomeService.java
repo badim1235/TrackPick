@@ -30,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 class HomeService {
 	private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
-	private static final int HOME_SECTION_SIZE = 6;
+	private static final int HOME_SECTION_SIZE = 4;
 	private static final int RECENT_PAGE_SIZE = 20;
 	private static final UUID EMPTY_UUID = new UUID(0, 0);
 	private static final String TRACK_COLUMNS = """

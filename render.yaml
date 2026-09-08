@@ -21,6 +21,10 @@ services:
         sync: false
       - key: SUPABASE_SECRET_KEY
         sync: false
+      - key: AUTH_EMAIL_REDIRECT_URL
+        value: https://trackpick.net/login?verified=1
+      - key: AUTH_PASSWORD_RECOVERY_REDIRECT_URL
+        value: https://trackpick.net/recover/password
       - key: ADMIN_EMAILS
         sync: false
       - key: REPORT_LIMIT

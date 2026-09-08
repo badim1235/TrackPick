@@ -8,11 +8,13 @@ import {
 } from 'lucide-react'
 import { NavLink, Route, Routes, useLocation } from 'react-router'
 import styles from './App.module.css'
+import { ActivityPage } from './activity/ActivityPage'
 import { AdminPage } from './admin/AdminPage'
 import { AccountPage, AccountRecoveryPage, JoinPage, LoginPage } from './auth/AuthPages'
 import { useAccount } from './auth/account'
 import { ChartPage } from './catalog/ChartPage'
 import { RecommendPage } from './catalog/RecommendPage'
+import { FeedbackPage } from './feedback/FeedbackPage'
 import { HomePage, RecentPage } from './home/HomePages'
 import { TrackDetailPage } from './track/TrackDetailPage'
 
@@ -96,12 +98,17 @@ function App() {
           <Route path="/join" element={<JoinPage />} />
           <Route path="/recover/password" element={<AccountRecoveryPage />} />
           <Route path="/me" element={<AccountPage />} />
+          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
 
-      <footer className={styles.footer}>TrackPick · 매일 00:00 KST 차트 갱신</footer>
+      <footer className={styles.footer}>
+        <span>TrackPick · 매일 00:00 KST 차트 갱신</span>
+        <NavLink to="/feedback">의견 보내기</NavLink>
+      </footer>
       <div className={styles.mobileNav}><Navigation /></div>
     </div>
   )

@@ -6,7 +6,7 @@
 
 ## Context
 
-TrackDrop은 사용자가 추천된 곡을 사이트 안에서 짧게 들어볼 수 있어야 한다. YouTube embed는 광고가 재생될 수 있어 제품 요구에 맞지 않는다. 음원을 직접 다운로드해 인트로를 자르거나 재호스팅하는 방식은 저작권과 provider 정책상 채택하지 않는다.
+TrackPick은 사용자가 추천된 곡을 사이트 안에서 짧게 들어볼 수 있어야 한다. YouTube embed는 광고가 재생될 수 있어 제품 요구에 맞지 않는다. 음원을 직접 다운로드해 인트로를 자르거나 재호스팅하는 방식은 저작권과 provider 정책상 채택하지 않는다.
 
 Spotify의 preview URL은 안정적인 핵심 기능으로 의존하기 어렵고, Spotify Web Playback SDK의 전체 재생은 사용자 계정과 Premium 조건을 요구한다. Apple iTunes Search API는 Track 결과에 공식 30초 `previewUrl`을 제공한다.
 

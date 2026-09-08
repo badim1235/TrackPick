@@ -14,7 +14,7 @@
 
 ## 1. 이번 단계의 목적
 
-TrackDrop MVP를 구현하기 전에 언어와 framework 이름뿐 아니라 DB, session, migration, API 계약, 외부 API client, scheduler, 테스트와 배포 단위까지 결정한다.
+TrackPick MVP를 구현하기 전에 언어와 framework 이름뿐 아니라 DB, session, migration, API 계약, 외부 API client, scheduler, 테스트와 배포 단위까지 결정한다.
 
 사용자는 PostgreSQL 경험이 있고 Java를 새로 학습하려 한다. 따라서 Java 생태계의 핵심을 실제로 경험하면서도, 개인 포트폴리오 프로젝트 규모에 맞는 모듈형 모놀리스로 구성한다.
 
@@ -44,7 +44,7 @@ TrackDrop MVP를 구현하기 전에 언어와 framework 이름뿐 아니라 DB,
 | Identifier | PostgreSQL `uuid`, application에서 UUID v4 생성 |
 | Security | Supabase Auth 이메일 인증 + Spring Security 7 server-side session, CSRF 활성화 |
 | Session | Spring Session JDBC를 PostgreSQL에 저장 |
-| Password | Supabase Auth가 저장·검증하고 TrackDrop DB에는 자격 증명을 저장하지 않음 |
+| Password | Supabase Auth가 저장·검증하고 TrackPick DB에는 자격 증명을 저장하지 않음 |
 | External API | Spring `RestClient` 기반 Apple iTunes Search API adapter |
 | Frontend | Node.js 24 LTS, React 19.2, TypeScript, Vite 8 |
 | Routing/state | React Router 8 Declarative Mode, TanStack Query 5 |
@@ -69,7 +69,7 @@ TrackDrop MVP를 구현하기 전에 언어와 framework 이름뿐 아니라 DB,
 
 - 사용자의 Java 학습 목표에 직접 부합한다.
 - Spring Security, transaction, scheduler, validation과 외부 HTTP client를 하나의 일관된 생태계에서 배울 수 있다.
-- TrackDrop의 핵심인 DB transaction, Unique Constraint, batch와 동시성 설명에 적합하다.
+- TrackPick의 핵심인 DB transaction, Unique Constraint, batch와 동시성 설명에 적합하다.
 - Java record, sealed type 등 현대 Java 문법을 DTO와 domain result에 활용할 수 있다.
 
 Trade-off:
@@ -79,7 +79,7 @@ Trade-off:
 
 ### 4.2 Spring MVC
 
-TrackDrop의 DB와 외부 API 호출은 전형적인 request/response 흐름이다. Reactive stack을 도입해 얻는 이익보다 transaction과 debugging 복잡도가 커지므로 Spring WebFlux가 아닌 Spring MVC를 사용한다.
+TrackPick의 DB와 외부 API 호출은 전형적인 request/response 흐름이다. Reactive stack을 도입해 얻는 이익보다 transaction과 debugging 복잡도가 커지므로 Spring WebFlux가 아닌 Spring MVC를 사용한다.
 
 Apple API 호출도 blocking `RestClient`로 구성하고 연결·응답 timeout을 명시한다. 외부 API 장애는 adapter에서 내부 오류로 변환한다.
 
@@ -169,7 +169,7 @@ Spring `JdbcClient` 또는 `JdbcTemplate`을 다음에 사용한다.
 
 ### 6.1 Supabase Auth, Spring Security와 JDBC Session
 
-회원가입, 이메일 확인과 비밀번호 검증·재설정은 Supabase Auth에 위임한다. TrackDrop backend는 이메일 로그인 성공 후 `HttpOnly`, `Secure`, `SameSite=Lax` cookie 기반 application session을 만들고 [Spring Session JDBC](https://docs.spring.io/spring-session/reference/guides/boot-jdbc.html)를 통해 PostgreSQL에 저장한다.
+회원가입, 이메일 확인과 비밀번호 검증·재설정은 Supabase Auth에 위임한다. TrackPick backend는 이메일 로그인 성공 후 `HttpOnly`, `Secure`, `SameSite=Lax` cookie 기반 application session을 만들고 [Spring Session JDBC](https://docs.spring.io/spring-session/reference/guides/boot-jdbc.html)를 통해 PostgreSQL에 저장한다.
 
 선택 이유:
 
@@ -182,7 +182,7 @@ JWT는 발급 후 강제 만료와 보안 정책이 복잡해지고 현재 same-
 
 ### 6.2 Password
 
-TrackDrop DB에는 원문 비밀번호와 비밀번호 hash를 저장하지 않는다. backend는 가입·로그인 요청을 Supabase Auth API로 전달하며, application log에는 비밀번호나 이메일을 기록하지 않는다.
+TrackPick DB에는 원문 비밀번호와 비밀번호 hash를 저장하지 않는다. backend는 가입·로그인 요청을 Supabase Auth API로 전달하며, application log에는 비밀번호나 이메일을 기록하지 않는다.
 
 Password 입력은 8~16 code point로 제한하고 영문자와 숫자를 각각 하나 이상 요구한다. 공백과 제어문자는 거부하며 특수문자는 별도 whitelist 없이 허용한다. 입력을 trim하거나 대소문자 변환하지 않고 Supabase Auth에 전달한다.
 
@@ -203,7 +203,8 @@ Apple iTunes Search API 요청은 backend만 수행한다.
 
 ```text
 country=KR
-fallback country=US when the KR result is empty
+fallback discovery country=US when the KR result is empty
+resolve every displayed fallback ID through country=KR lookup
 media=music
 entity=song
 limit=20
@@ -228,7 +229,7 @@ Redis는 이 cache 때문에 도입하지 않는다. 다중 instance에서 provi
 
 [React의 현재 major는 19.2](https://react.dev/versions)이고 [Vite 8은 2026년 3월 stable로 출시](https://vite.dev/blog/announcing-vite8)됐다. Node.js는 production toolchain에 [LTS 사용이 권장](https://nodejs.org/en/about/previous-releases)되므로 Node.js 24 LTS를 사용한다.
 
-TrackDrop은 검색과 차트 중심의 authenticated SPA이고 SSR이나 검색 엔진 유입이 핵심이 아니다. Next.js 또는 React Router Framework Mode의 server runtime을 추가하지 않고 Vite 기반 React SPA로 만든다.
+TrackPick은 검색과 차트 중심의 authenticated SPA이고 SSR이나 검색 엔진 유입이 핵심이 아니다. Next.js 또는 React Router Framework Mode의 server runtime을 추가하지 않고 Vite 기반 React SPA로 만든다.
 
 ### 8.2 Frontend libraries
 
@@ -293,7 +294,7 @@ Quartz, Spring Batch, 별도 Worker와 Redis distributed lock은 MVP에 도입�
 ## 12. Repository와 실행 구조
 
 ```text
-TrackDrop/
+TrackPick/
   backend/
     pom.xml
     mvnw

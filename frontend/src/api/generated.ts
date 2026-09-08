@@ -141,6 +141,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the current user's recommendation activity and received votes */
+        get: operations["getMyActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit anonymous product feedback */
+        post: operations["createFeedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/music/search": {
         parameters: {
             query?: never;
@@ -339,7 +373,7 @@ export interface components {
             /** @constant */
             status: "UP";
             /** @constant */
-            service: "TrackDrop";
+            service: "TrackPick";
         };
         CsrfResponse: {
             token: string;
@@ -386,6 +420,69 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             admin: boolean;
+        };
+        ActivityResponse: {
+            /** Format: date-time */
+            asOf: string;
+            summary: components["schemas"]["ActivitySummary"];
+            items: components["schemas"]["ActivityItem"][];
+            page: components["schemas"]["ActivityPage"];
+        };
+        ActivitySummary: {
+            recommendationCount: number;
+            firstPickCount: number;
+            /** @description Votes received from other users across this user's recommendation cycles. */
+            receivedVoteCount: number;
+            highestVoted: components["schemas"]["HighestVotedActivity"] | null;
+        };
+        HighestVotedActivity: {
+            /** Format: uuid */
+            trackId: string;
+            title: string;
+            artistName: string;
+            /** Format: uri */
+            albumCoverUrl: string | null;
+            /** Format: date */
+            recommendedOn: string;
+            /** @description Votes from other users on this recommendation date. */
+            voteCount: number;
+        };
+        ActivityItem: {
+            /** Format: uuid */
+            recommendationId: string;
+            /** Format: uuid */
+            trackId: string;
+            title: string;
+            artistName: string;
+            /** Format: uri */
+            albumCoverUrl: string | null;
+            /** Format: date */
+            recommendedOn: string;
+            /** Format: date-time */
+            createdAt: string;
+            comment: string | null;
+            /** @description Votes from other users on this recommendation date. */
+            voteCount: number;
+            firstPick: boolean;
+        };
+        ActivityPage: {
+            /** @constant */
+            size: 20;
+            hasMore: boolean;
+            nextCursor: string | null;
+        };
+        /** @enum {string} */
+        FeedbackCategory: "ERROR" | "UI_USABILITY" | "OTHER";
+        FeedbackRequest: {
+            category: components["schemas"]["FeedbackCategory"];
+            content: string;
+        };
+        FeedbackResponse: {
+            /** Format: uuid */
+            id: string;
+            category: components["schemas"]["FeedbackCategory"];
+            /** Format: date-time */
+            createdAt: string;
         };
         DailyQuota: {
             /** Format: date */
@@ -537,6 +634,7 @@ export interface components {
             primaryGenre: components["schemas"]["Genre"];
             genres: components["schemas"]["Genre"][];
             recommendation: components["schemas"]["TrackRecommendation"];
+            latestRecommendation: components["schemas"]["TrackRecommendation"] | null;
             viewer: components["schemas"]["TrackViewer"] | null;
             preview: components["schemas"]["MusicPreview"];
             providerReferences: components["schemas"]["TrackProviderReference"][];
@@ -549,6 +647,8 @@ export interface components {
             recommenderNickname: string | null;
             /** Format: date-time */
             createdAt: string;
+            canReport: boolean;
+            hasReported: boolean;
         };
         TrackViewer: {
             hasVotedToday: boolean;
@@ -1111,6 +1211,57 @@ export interface operations {
             503: components["responses"]["ServiceUnavailableError"];
         };
     };
+    getMyActivity: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A private summary and page of recommendation activity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityResponse"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["AuthenticationError"];
+        };
+    };
+    createFeedback: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["CsrfHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description The feedback was stored without account or IP information. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackResponse"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+        };
+    };
     searchMusic: {
         parameters: {
             query: {
@@ -1122,7 +1273,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Up to 20 relevant songs from the KR storefront, with a US fallback when KR is empty, including explicit tracks. */
+            /** @description Up to 20 relevant songs resolved to KR storefront metadata, including explicit tracks. */
             200: {
                 headers: {
                     [name: string]: unknown;

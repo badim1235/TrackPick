@@ -1,4 +1,4 @@
-# TrackDrop ERD 및 데이터 무결성 설계
+# TrackPick ERD 및 데이터 무결성 설계
 
 > 상태: **Accepted**
 >
@@ -14,7 +14,7 @@
 
 ## 1. 문서 목적
 
-승인된 TrackDrop MVP 정책을 관계형 데이터 모델로 구체화한다. 이 문서는 Entity 관계뿐 아니라 중복 Vote, 일일 4회 제한, Track 정규화, `ROW_NUMBER` snapshot, 신고 기능의 데이터 무결성을 어떤 제약과 트랜잭션으로 보장할지 정의한다.
+승인된 TrackPick MVP 정책을 관계형 데이터 모델로 구체화한다. 이 문서는 Entity 관계뿐 아니라 중복 Vote, 일일 4회 제한, Track 정규화, `ROW_NUMBER` snapshot, 신고와 익명 의견 접수의 데이터 무결성을 어떤 제약과 트랜잭션으로 보장할지 정의한다.
 
 Phase 5에서 기술 스택과 DB 제품을 결정하기 전이므로 물리적인 PK 타입, 문자열 길이, DB 전용 문법은 아직 고정하지 않는다. 모든 `id`는 외부에서 추측 가능한 연속 번호를 그대로 노출하지 않는 opaque identifier로 취급한다.
 
@@ -28,12 +28,13 @@ Phase 5에서 기술 스택과 DB 제품을 결정하기 전이므로 물리적�
 6. 동일 득표수의 Track 이름 정렬과 Top 20 더 보기를 snapshot에 어떻게 보존할지
 7. 실패한 Ranking batch가 부분 데이터를 노출하지 않게 할지
 8. 숨겨진 신고 기능을 어느 Entity에 연결할지
+9. 공개 의견을 사용자 Identity와 분리해 어떻게 저장할지
 
 ## 3. 추천 설계 요약
 
 | 주제 | 설계 결정 |
 | --- | --- |
-| 계정 | Supabase Auth UUID를 `users.id`로 사용하고 TrackDrop DB에는 이메일, 확인 시각과 공개 닉네임만 저장한다. 비밀번호는 저장하지 않는다. |
+| 계정 | Supabase Auth UUID를 `users.id`로 사용하고 TrackPick DB에는 이메일, 확인 시각과 공개 닉네임만 저장한다. 비밀번호는 저장하지 않는다. |
 | Track | 내부 `tracks`와 provider별 `track_provider_refs`를 분리한다. 외부 ID는 Track의 PK가 아니다. |
 | Artist | MVP에서는 별도 Entity를 만들지 않고 Track의 `artist_name` 표시 문자열로 저장한다. |
 | Genre | Track은 `track_genres`를 통해 여러 장르를 가질 수 있다. Recommendation의 대표 장르는 Apple Music 분류를 활성 시스템 장르에 자동 매칭한다. |
@@ -43,6 +44,7 @@ Phase 5에서 기술 스택과 DB 제품을 결정하기 전이므로 물리적�
 | Ranking | `daily_rankings.rank`에 Vote 수와 Track 이름을 기준으로 계산한 고유 `ROW_NUMBER`를 저장한다. |
 | Batch | 날짜별 `ranking_runs` 상태가 `COMPLETED`일 때만 snapshot을 공개한다. |
 | 신고 | `content_reports`는 Recommendation의 한줄평과 작성자를 함께 참조한다. 동일 사용자 중복 신고를 막고 미처리 신고 3건에 도달하면 작성자를 `FLAGGED`로 전환한다. |
+| 의견 | `feedback_submissions`에는 분류, 본문과 접수 시각만 저장하고 User 관계를 만들지 않는다. |
 
 ## 4. 선택 이유와 Trade-off
 
@@ -228,6 +230,13 @@ erDiagram
         id resolved_by_user_id FK
         string resolution_action
     }
+
+    FEEDBACK_SUBMISSIONS {
+        id id PK
+        string category
+        string content
+        instant created_at
+    }
 ```
 
 ## 6. Table 명세
@@ -253,7 +262,7 @@ erDiagram
 - 공개 User 응답에는 `public_nickname`만 포함한다.
 - 본인 계정 응답에서만 로그인 이메일을 포함한다.
 
-비밀번호는 8~16자이며 공백 없이 영문자와 숫자를 각각 하나 이상 포함하고 특수문자는 선택이다. 이메일 확인 token, 비밀번호 hash와 복구 token은 Supabase Auth의 `auth` schema에서 관리하므로 TrackDrop ERD에 중복 정의하지 않는다.
+비밀번호는 8~16자이며 공백 없이 영문자와 숫자를 각각 하나 이상 포함하고 특수문자는 선택이다. 이메일 확인 token, 비밀번호 hash와 복구 token은 Supabase Auth의 `auth` schema에서 관리하므로 TrackPick ERD에 중복 정의하지 않는다.
 
 ### 6.2 genres
 
@@ -499,6 +508,17 @@ ROW_NUMBER() OVER (
 - 관리자 무혐의 조치는 대기 신고를 `DISMISSED`로 종결하고 사용자를 `NORMAL`로 되돌린다.
 - 관리자 이용 제한은 대기 신고를 `ACTIONED`로 종결하고 사용자를 `BAN`·`SUSPENDED`로 전환하며 한줄평과 기존 세션을 회수한다.
 
+### 6.12 feedback_submissions
+
+| 컬럼 | 필수 | 제약/정책 |
+| --- | --- | --- |
+| `id` | Y | PK, UUID |
+| `category` | Y | `ERROR`, `UI_USABILITY`, `OTHER` 중 하나 |
+| `content` | Y | trim 후 1~2,000자 |
+| `created_at` | Y | UTC instant |
+
+사용자 FK, 이메일과 IP 컬럼을 두지 않는다. Supabase Data API의 `anon`, `authenticated` role에는 테이블 권한을 부여하지 않고 backend만 JDBC로 기록한다.
+
 ## 7. 핵심 인덱스
 
 PK와 Unique Constraint가 만드는 인덱스 외에 다음 인덱스를 권장한다.
@@ -514,6 +534,7 @@ PK와 Unique Constraint가 만드는 인덱스 외에 다음 인덱스를 권장
 | `daily_rankings(ranking_date, scope_type, genre_id, rank)` | 과거 Top 50의 20곡 + 30곡 더 보기 |
 | `content_reports(status, created_at)` | 향후 운영 검토 queue |
 | `content_reports(reported_user_id, status, created_at DESC)` | 사용자별 미처리 신고 집계와 관리자 검토 목록 |
+| `feedback_submissions(created_at DESC, id DESC)` | 운영자가 최신 의견부터 검토 |
 
 오늘 추천 상위 홈은 `votes(voted_on, track_id)` 집계를 사용한다. 초기에는 별도 counter나 Redis 없이 시작하고, 실제 조회 부하가 확인되면 cache를 추가한다.
 
@@ -569,13 +590,17 @@ Track 행 lock과 `UNIQUE(track_id, recommended_on)`이 동시 재등록을 직�
 
 ### 8.4 삭제와 수정 정책
 
-- User는 상태 전환을 사용하며 일반 기능에서 hard delete하지 않는다.
-- Track과 Recommendation은 Vote 또는 Ranking에서 참조된 이후 hard delete하지 않는다.
+- 회원 탈퇴는 User, 해당 사용자의 Recommendation과 Vote를 hard delete한다.
+- 회원 탈퇴를 제외한 일반 기능에서는 Track과 Recommendation을 hard delete하지 않는다.
 - 대표 Genre는 등록 시 provider 원본 분류로 자동 결정한다. MVP에는 일반 수정 endpoint를 제공하지 않는다.
 - 한줄평은 일반 사용자가 수정·삭제할 수 없다.
 - 운영 숨김은 `comment_visibility=HIDDEN`으로 처리한다.
 - Vote는 취소·수정·삭제하지 않는다.
 - 완료된 DailyRanking은 일반 요청으로 수정하지 않는다.
+- 가입 제한용 IP hash 행은 24시간 이내 삭제한다.
+- `PENDING`이 아닌 신고 기록은 `resolved_at`부터 3개월 뒤 삭제한다.
+- 회원 탈퇴와 연관된 완료 신고는 User·Recommendation FK를 null로 익명화하고 보관 기간까지 유지하며, 미처리 신고는 함께 삭제한다.
+- 의견 제출은 User와 관계가 없으므로 회원 탈퇴의 영향을 받지 않는다.
 
 ## 9. Daily Ranking batch
 

@@ -81,12 +81,19 @@ class TrackDetailService {
 			genre.code AS genre_code,
 			genre.display_name AS genre_display_name,
 			genre.sort_order AS genre_sort_order,
-			first_recommendation.id AS recommendation_id,
-			first_recommendation.recommender_user_id AS recommendation_owner_id,
-			CASE WHEN first_recommendation.comment_visibility = 'VISIBLE' THEN first_recommendation.comment END AS comment,
-			CASE WHEN first_recommendation.comment_visibility = 'VISIBLE' THEN recommender.public_nickname END AS recommender_nickname,
-			recommender.activity AS recommender_activity,
-			first_recommendation.created_at AS recommendation_created_at,
+			first_recommendation.id AS first_recommendation_id,
+			first_recommendation.recommender_user_id AS first_recommendation_owner_id,
+			CASE WHEN first_recommendation.comment_visibility = 'VISIBLE' THEN first_recommendation.comment END AS first_comment,
+			CASE WHEN first_recommendation.comment_visibility = 'VISIBLE' THEN first_recommender.public_nickname END AS first_recommender_nickname,
+			first_recommender.activity AS first_recommender_activity,
+			first_recommendation.created_at AS first_recommendation_created_at,
+			latest_recommendation.id AS latest_recommendation_id,
+			latest_recommendation.recommender_user_id AS latest_recommendation_owner_id,
+			CASE WHEN latest_recommendation.comment_visibility = 'VISIBLE' THEN latest_recommendation.comment END AS latest_comment,
+			CASE WHEN latest_recommendation.comment_visibility = 'VISIBLE' THEN latest_recommender.public_nickname END AS latest_recommender_nickname,
+			latest_recommender.activity AS latest_recommender_activity,
+			latest_recommendation.created_at AS latest_recommendation_created_at,
+			latest_recommendation.recommendation_count,
 			latest_recommendation.recommended_on AS latest_recommended_on,
 			provider_ref.external_track_id,
 			provider_ref.external_url,
@@ -113,11 +120,18 @@ class TrackDetailService {
 				FROM content_reports report
 				WHERE report.reporter_user_id = :viewerId
 				  AND report.recommendation_id = first_recommendation.id
-			) AS has_reported
+			) AS has_reported_first,
+			EXISTS (
+				SELECT 1
+				FROM content_reports report
+				WHERE report.reporter_user_id = :viewerId
+				  AND report.recommendation_id = latest_recommendation.id
+			) AS has_reported_latest
 		FROM tracks track
 		JOIN LATERAL (
 			SELECT latest.id, latest.recommender_user_id, latest.primary_genre_id,
-				latest.comment, latest.comment_visibility, latest.recommended_on, latest.created_at
+				latest.comment, latest.comment_visibility, latest.recommended_on, latest.created_at,
+				COUNT(*) OVER () AS recommendation_count
 			FROM recommendations latest
 			WHERE latest.track_id = track.id
 			ORDER BY latest.recommended_on DESC, latest.created_at DESC, latest.id DESC
@@ -131,7 +145,8 @@ class TrackDetailService {
 			ORDER BY first_pick.recommended_on ASC, first_pick.created_at ASC, first_pick.id ASC
 			LIMIT 1
 		) first_recommendation ON TRUE
-		JOIN users recommender ON recommender.id = first_recommendation.recommender_user_id
+		JOIN users first_recommender ON first_recommender.id = first_recommendation.recommender_user_id
+		JOIN users latest_recommender ON latest_recommender.id = latest_recommendation.recommender_user_id
 		JOIN genres genre ON genre.id = latest_recommendation.primary_genre_id
 		JOIN track_provider_refs provider_ref
 		  ON provider_ref.track_id = track.id AND provider_ref.provider = 'APPLE_MUSIC'
@@ -171,18 +186,28 @@ class TrackDetailService {
 			.orElseThrow(TrackDetailException::notFound);
 		List<Genre> genres = findGenres(trackId);
 		DailyQuotaSnapshot quota = authenticated ? quotaService.current(viewerId) : null;
-		Actions actions = actions(
+		ReportState firstReport = reportState(
 			authenticated,
 			viewerId,
-			row.recommendationOwnerId(),
-			row.comment() != null,
-			row.recommenderActivity(),
-			row.hasReported(),
+			row.firstRecommendationOwnerId(),
+			row.firstComment() != null,
+			row.firstRecommenderActivity(),
+			row.hasReportedFirst());
+		ReportState latestReport = reportState(
+			authenticated,
+			viewerId,
+			row.latestRecommendationOwnerId(),
+			row.latestComment() != null,
+			row.latestRecommenderActivity(),
+			row.hasReportedLatest());
+		Actions actions = actions(
+			authenticated,
 			row.hasVotedToday(),
 			row.inCurrentChart(),
 			row.latestRecommendedOn(),
 			today,
-			quota);
+			quota,
+			firstReport);
 		String previewUrl = row.previewUrl();
 
 		Track track = new Track(
@@ -198,11 +223,23 @@ class TrackDetailService {
 			row.primaryGenre(),
 			genres,
 			new Recommendation(
-				row.recommendationId(),
-				row.comment(),
-				row.comment() != null,
-				row.recommenderNickname(),
-				row.recommendationCreatedAt()),
+				row.firstRecommendationId(),
+				row.firstComment(),
+				row.firstComment() != null,
+				row.firstRecommenderNickname(),
+				row.firstRecommendationCreatedAt(),
+				firstReport.canReport(),
+				firstReport.hasReported()),
+			row.recommendationCount() > 1
+				? new Recommendation(
+					row.latestRecommendationId(),
+					row.latestComment(),
+					row.latestComment() != null,
+					row.latestRecommenderNickname(),
+					row.latestRecommendationCreatedAt(),
+					latestReport.canReport(),
+					latestReport.hasReported())
+				: null,
 			authenticated ? new Viewer(row.hasVotedToday()) : null,
 			new Preview(
 				previewUrl != null,
@@ -242,40 +279,52 @@ class TrackDetailService {
 
 	private Actions actions(
 		boolean authenticated,
-		UUID viewerId,
-		UUID recommendationOwnerId,
-		boolean commentAvailable,
-		String recommenderActivity,
-		boolean hasReported,
 		boolean hasVotedToday,
 		boolean inCurrentChart,
 		LocalDate latestRecommendedOn,
 		LocalDate today,
-		DailyQuotaSnapshot quota
+		DailyQuotaSnapshot quota,
+		ReportState firstReport
 	) {
 		LocalDate availableOn = latestRecommendedOn.plusDays(3);
+		if (hasVotedToday) {
+			return new Actions(false, false, "ALREADY_VOTED", availableOn,
+				firstReport.canReport(), firstReport.hasReported());
+		}
+		if (!inCurrentChart && today.isBefore(availableOn)) {
+			return new Actions(false, false, "RECOMMENDATION_COOLDOWN", availableOn,
+				firstReport.canReport(), firstReport.hasReported());
+		}
+		if (!authenticated) {
+			return new Actions(false, false, "UNAUTHENTICATED", availableOn, false, false);
+		}
+		if (quota.remaining() == 0) {
+			return new Actions(false, false, "DAILY_LIMIT_EXCEEDED", availableOn,
+				firstReport.canReport(), firstReport.hasReported());
+		}
+		if (inCurrentChart) {
+			return new Actions(true, false, null, availableOn,
+				firstReport.canReport(), firstReport.hasReported());
+		}
+		return new Actions(false, true, null, availableOn,
+			firstReport.canReport(), firstReport.hasReported());
+	}
+
+	private ReportState reportState(
+		boolean authenticated,
+		UUID viewerId,
+		UUID recommendationOwnerId,
+		boolean commentAvailable,
+		String recommenderActivity,
+		boolean hasReported
+	) {
 		boolean canReport = reportsEnabled
 			&& authenticated
 			&& commentAvailable
 			&& !recommendationOwnerId.equals(viewerId)
 			&& !"BAN".equals(recommenderActivity)
 			&& !hasReported;
-		if (hasVotedToday) {
-			return new Actions(false, false, "ALREADY_VOTED", availableOn, canReport, hasReported);
-		}
-		if (!inCurrentChart && today.isBefore(availableOn)) {
-			return new Actions(false, false, "RECOMMENDATION_COOLDOWN", availableOn, canReport, hasReported);
-		}
-		if (!authenticated) {
-			return new Actions(false, false, "UNAUTHENTICATED", availableOn, false, false);
-		}
-		if (quota.remaining() == 0) {
-			return new Actions(false, false, "DAILY_LIMIT_EXCEEDED", availableOn, canReport, hasReported);
-		}
-		if (inCurrentChart) {
-			return new Actions(true, false, null, availableOn, canReport, hasReported);
-		}
-		return new Actions(false, true, null, availableOn, canReport, hasReported);
+		return new ReportState(canReport, authenticated && hasReported);
 	}
 
 	private static TrackRow mapRow(ResultSet row, int rowNumber) throws SQLException {
@@ -294,12 +343,19 @@ class TrackDetailService {
 				row.getString("genre_code"),
 				row.getString("genre_display_name"),
 				row.getInt("genre_sort_order")),
-			row.getObject("recommendation_id", UUID.class),
-			row.getObject("recommendation_owner_id", UUID.class),
-			row.getString("comment"),
-			row.getString("recommender_nickname"),
-			row.getString("recommender_activity"),
-			row.getObject("recommendation_created_at", OffsetDateTime.class).toInstant(),
+			row.getObject("first_recommendation_id", UUID.class),
+			row.getObject("first_recommendation_owner_id", UUID.class),
+			row.getString("first_comment"),
+			row.getString("first_recommender_nickname"),
+			row.getString("first_recommender_activity"),
+			row.getObject("first_recommendation_created_at", OffsetDateTime.class).toInstant(),
+			row.getObject("latest_recommendation_id", UUID.class),
+			row.getObject("latest_recommendation_owner_id", UUID.class),
+			row.getString("latest_comment"),
+			row.getString("latest_recommender_nickname"),
+			row.getString("latest_recommender_activity"),
+			row.getObject("latest_recommendation_created_at", OffsetDateTime.class).toInstant(),
+			row.getInt("recommendation_count"),
 			row.getObject("latest_recommended_on", LocalDate.class),
 			row.getString("external_track_id"),
 			row.getString("external_url"),
@@ -310,7 +366,8 @@ class TrackDetailService {
 			nullableLong(row, "genre_rank"),
 			row.getBoolean("has_voted_today"),
 			row.getBoolean("in_current_chart"),
-			row.getBoolean("has_reported"));
+			row.getBoolean("has_reported_first"),
+			row.getBoolean("has_reported_latest"));
 	}
 
 	private static Long nullableLong(ResultSet row, String column) throws SQLException {
@@ -329,12 +386,19 @@ class TrackDetailService {
 		boolean explicit,
 		String providerGenreName,
 		Genre primaryGenre,
-		UUID recommendationId,
-		UUID recommendationOwnerId,
-		String comment,
-		String recommenderNickname,
-		String recommenderActivity,
-		Instant recommendationCreatedAt,
+		UUID firstRecommendationId,
+		UUID firstRecommendationOwnerId,
+		String firstComment,
+		String firstRecommenderNickname,
+		String firstRecommenderActivity,
+		Instant firstRecommendationCreatedAt,
+		UUID latestRecommendationId,
+		UUID latestRecommendationOwnerId,
+		String latestComment,
+		String latestRecommenderNickname,
+		String latestRecommenderActivity,
+		Instant latestRecommendationCreatedAt,
+		int recommendationCount,
 		LocalDate latestRecommendedOn,
 		String externalTrackId,
 		String externalUrl,
@@ -345,7 +409,11 @@ class TrackDetailService {
 		Long genreRank,
 		boolean hasVotedToday,
 		boolean inCurrentChart,
-		boolean hasReported
+		boolean hasReportedFirst,
+		boolean hasReportedLatest
 	) {
+	}
+
+	private record ReportState(boolean canReport, boolean hasReported) {
 	}
 }

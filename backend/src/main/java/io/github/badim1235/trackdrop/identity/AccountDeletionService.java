@@ -71,7 +71,9 @@ public class AccountDeletionService {
 			.update();
 		jdbcClient.sql("""
 				DELETE FROM content_reports report
-				WHERE report.reporter_user_id = :userId
+				WHERE report.status = 'PENDING'
+				  AND (
+				   report.reporter_user_id = :userId
 				   OR report.reported_user_id = :userId
 				   OR EXISTS (
 				       SELECT 1
@@ -79,6 +81,7 @@ public class AccountDeletionService {
 				       WHERE recommendation.id = report.recommendation_id
 				         AND recommendation.recommender_user_id = :userId
 				   )
+				  )
 				""")
 			.param("userId", userId)
 			.update();

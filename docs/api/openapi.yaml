@@ -184,6 +184,51 @@ paths:
           $ref: '#/components/responses/AuthenticationError'
         '503':
           $ref: '#/components/responses/ServiceUnavailableError'
+  /me/activity:
+    get:
+      operationId: getMyActivity
+      summary: Read the current user's recommendation activity and received votes
+      tags: [Identity]
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A private summary and page of recommendation activity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthenticationError'
+  /feedback:
+    post:
+      operationId: createFeedback
+      summary: Submit anonymous product feedback
+      tags: [Feedback]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+      responses:
+        '201':
+          description: The feedback was stored without account or IP information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
   /music/search:
     get:
       operationId: searchMusic
@@ -199,7 +244,7 @@ paths:
             maxLength: 100
       responses:
         '200':
-          description: Up to 20 relevant songs from the KR storefront, with a US fallback when KR is empty, including explicit tracks.
+          description: Up to 20 relevant songs resolved to KR storefront metadata, including explicit tracks.
           content:
             application/json:
               schema:
@@ -609,7 +654,7 @@ components:
           const: UP
         service:
           type: string
-          const: TrackDrop
+          const: TrackPick
     CsrfResponse:
       type: object
       additionalProperties: false
@@ -707,6 +752,144 @@ components:
           format: date-time
         admin:
           type: boolean
+    ActivityResponse:
+      type: object
+      additionalProperties: false
+      required: [asOf, summary, items, page]
+      properties:
+        asOf:
+          type: string
+          format: date-time
+        summary:
+          $ref: '#/components/schemas/ActivitySummary'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityItem'
+        page:
+          $ref: '#/components/schemas/ActivityPage'
+    ActivitySummary:
+      type: object
+      additionalProperties: false
+      required: [recommendationCount, firstPickCount, receivedVoteCount, highestVoted]
+      properties:
+        recommendationCount:
+          type: integer
+          minimum: 0
+        firstPickCount:
+          type: integer
+          minimum: 0
+        receivedVoteCount:
+          type: integer
+          minimum: 0
+          description: Votes received from other users across this user's recommendation cycles.
+        highestVoted:
+          oneOf:
+            - $ref: '#/components/schemas/HighestVotedActivity'
+            - type: 'null'
+    HighestVotedActivity:
+      type: object
+      additionalProperties: false
+      required: [trackId, title, artistName, albumCoverUrl, recommendedOn, voteCount]
+      properties:
+        trackId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        artistName:
+          type: string
+        albumCoverUrl:
+          type: [string, 'null']
+          format: uri
+        recommendedOn:
+          type: string
+          format: date
+        voteCount:
+          type: integer
+          minimum: 0
+          description: Votes from other users on this recommendation date.
+    ActivityItem:
+      type: object
+      additionalProperties: false
+      required:
+        - recommendationId
+        - trackId
+        - title
+        - artistName
+        - albumCoverUrl
+        - recommendedOn
+        - createdAt
+        - comment
+        - voteCount
+        - firstPick
+      properties:
+        recommendationId:
+          type: string
+          format: uuid
+        trackId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        artistName:
+          type: string
+        albumCoverUrl:
+          type: [string, 'null']
+          format: uri
+        recommendedOn:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+        comment:
+          type: [string, 'null']
+        voteCount:
+          type: integer
+          minimum: 0
+          description: Votes from other users on this recommendation date.
+        firstPick:
+          type: boolean
+    ActivityPage:
+      type: object
+      additionalProperties: false
+      required: [size, hasMore, nextCursor]
+      properties:
+        size:
+          type: integer
+          const: 20
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: [string, 'null']
+    FeedbackCategory:
+      type: string
+      enum: [ERROR, UI_USABILITY, OTHER]
+    FeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [category, content]
+      properties:
+        category:
+          $ref: '#/components/schemas/FeedbackCategory'
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    FeedbackResponse:
+      type: object
+      additionalProperties: false
+      required: [id, category, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        category:
+          $ref: '#/components/schemas/FeedbackCategory'
+        createdAt:
+          type: string
+          format: date-time
     DailyQuota:
       type: object
       additionalProperties: false
@@ -888,7 +1071,7 @@ components:
           type: string
         items:
           type: array
-          maxItems: 6
+          maxItems: 4
           items:
             $ref: '#/components/schemas/HomeTrackCard'
         viewAllPath:
@@ -1040,6 +1223,7 @@ components:
         - primaryGenre
         - genres
         - recommendation
+        - latestRecommendation
         - viewer
         - preview
         - providerReferences
@@ -1072,6 +1256,10 @@ components:
             $ref: '#/components/schemas/Genre'
         recommendation:
           $ref: '#/components/schemas/TrackRecommendation'
+        latestRecommendation:
+          oneOf:
+            - $ref: '#/components/schemas/TrackRecommendation'
+            - type: 'null'
         viewer:
           oneOf:
             - $ref: '#/components/schemas/TrackViewer'
@@ -1085,7 +1273,7 @@ components:
     TrackRecommendation:
       type: object
       additionalProperties: false
-      required: [id, comment, commentAvailable, recommenderNickname, createdAt]
+      required: [id, comment, commentAvailable, recommenderNickname, createdAt, canReport, hasReported]
       properties:
         id:
           type: string
@@ -1099,6 +1287,10 @@ components:
         createdAt:
           type: string
           format: date-time
+        canReport:
+          type: boolean
+        hasReported:
+          type: boolean
     TrackViewer:
       type: object
       additionalProperties: false

@@ -42,6 +42,35 @@ describe('TrackPick app shell', () => {
     expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/')
   })
 
+  it('submits anonymous product feedback without account information', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/v1/me') return new Response('', { status: 401 })
+      if (url === '/api/v1/auth/csrf') return Response.json({ token: 'csrf-token' })
+      if (url === '/api/v1/feedback' && init?.method === 'POST') {
+        expect(JSON.parse(String(init.body))).toEqual({
+          category: 'UI_USABILITY',
+          content: '차트 날짜 선택이 더 잘 보이면 좋겠습니다.',
+        })
+        return Response.json({
+          id: '80000000-0000-0000-0000-000000000001',
+          category: 'UI_USABILITY',
+          createdAt: '2026-09-08T05:00:00Z',
+        }, { status: 201 })
+      }
+      return new Response('', { status: 404 })
+    })
+    const user = userEvent.setup()
+    renderApp('/feedback')
+
+    expect(screen.getByRole('heading', { name: 'TrackPick 의견 보내기' })).toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: /UI \/ 사용성/ }))
+    await user.type(screen.getByLabelText('의견을 자유롭게 적어주세요.'), '차트 날짜 선택이 더 잘 보이면 좋겠습니다.')
+    await user.click(screen.getByRole('button', { name: '의견 보내기' }))
+
+    expect(await screen.findByRole('heading', { name: '의견을 남겨주셔서 감사합니다.' })).toBeInTheDocument()
+  })
+
   it('renders trending and recent tracks on the home feed', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
@@ -191,6 +220,17 @@ describe('TrackPick app shell', () => {
               commentAvailable: true,
               recommenderNickname: '새벽리듬4881',
               createdAt: '2026-09-01T04:00:00Z',
+              canReport: false,
+              hasReported: false,
+            },
+            latestRecommendation: {
+              id: '30000000-0000-0000-0000-000000000011',
+              comment: '다시 차트에서 만나 반가운 곡이에요.',
+              commentAvailable: true,
+              recommenderNickname: '푸른멜로디1934',
+              createdAt: '2026-09-04T04:00:00Z',
+              canReport: false,
+              hasReported: false,
             },
             viewer: null,
             preview: {
@@ -231,6 +271,7 @@ describe('TrackPick app shell', () => {
     expect(screen.getByText('7표')).toBeInTheDocument()
     expect(screen.getByText('2위')).toBeInTheDocument()
     expect(screen.getByText(/처음 들은 순간부터 좋았어요/)).toBeInTheDocument()
+    expect(screen.getByText(/다시 차트에서 만나 반가운 곡이에요/)).toBeInTheDocument()
     expect(screen.getByLabelText('0+0 30초 미리듣기')).toHaveAttribute(
       'src',
       'https://example.com/preview.m4a',
@@ -330,6 +371,7 @@ describe('TrackPick app shell', () => {
             recommendation: {
               id: recommendationId, comment: '확인이 필요한 한줄평', commentAvailable: true,
               recommenderNickname: '푸른멜로디1934', createdAt: '2026-09-06T04:00:00Z',
+              canReport: !reported, hasReported: reported,
             },
             viewer: { hasVotedToday: false },
             preview: { available: false, provider: 'APPLE_MUSIC', kind: 'OFFICIAL_30_SECOND_CLIP', startPosition: 'PROVIDER_SELECTED', url: null },
@@ -673,6 +715,96 @@ describe('TrackPick app shell', () => {
     await waitFor(() => expect(deleted).toBe(true))
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/me', expect.objectContaining({ method: 'DELETE' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('shows the current user recommendation dashboard', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url === '/api/v1/me') {
+        return Response.json({
+          account: {
+            email: 'listener@example.com', publicNickname: '새벽리듬4881',
+            emailVerified: true, createdAt: '2026-08-01T00:00:00Z', admin: false,
+          },
+          quota: { date: '2026-09-08', limit: 4, used: 1, remaining: 3, resetAt: '2026-09-08T15:00:00Z' },
+        })
+      }
+      if (url === '/api/v1/me/activity') {
+        return Response.json({
+          asOf: '2026-09-08T05:00:00Z',
+          summary: {
+            recommendationCount: 3,
+            firstPickCount: 2,
+            receivedVoteCount: 9,
+            highestVoted: {
+              trackId: '20000000-0000-0000-0000-000000000021',
+              title: '가장 사랑받은 곡', artistName: 'TrackPick Artist', albumCoverUrl: null,
+              recommendedOn: '2026-09-07', voteCount: 5,
+            },
+          },
+          items: [{
+            recommendationId: '30000000-0000-0000-0000-000000000021',
+            trackId: '20000000-0000-0000-0000-000000000021',
+            title: '가장 사랑받은 곡', artistName: 'TrackPick Artist', albumCoverUrl: null,
+            recommendedOn: '2026-09-07', createdAt: '2026-09-07T04:00:00Z',
+            comment: '함께 듣고 싶은 곡이에요.', voteCount: 5, firstPick: true,
+          }],
+          page: { size: 20, hasMore: false, nextCursor: null },
+        })
+      }
+      return new Response('', { status: 404 })
+    })
+
+    renderApp('/activity')
+
+    expect(await screen.findByRole('heading', { name: '나의 활동' })).toBeInTheDocument()
+    expect((await screen.findByText('추천 횟수')).parentElement).toHaveTextContent('3')
+    expect(screen.getByText('최초 등록').parentElement).toHaveTextContent('2')
+    expect(screen.getByText('받은 추천').parentElement).toHaveTextContent('9')
+    expect(screen.getByText('FIRST PICK')).toBeInTheDocument()
+    expect(screen.getByText(/함께 듣고 싶은 곡이에요/)).toBeInTheDocument()
+    expect(screen.getAllByText('가장 사랑받은 곡')).toHaveLength(2)
+  })
+
+  it('hides the highest-voted track when no recommendation received another user vote', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url === '/api/v1/me') {
+        return Response.json({
+          account: {
+            email: 'listener@example.com', publicNickname: '새벽리듬4881',
+            emailVerified: true, createdAt: '2026-08-01T00:00:00Z', admin: false,
+          },
+          quota: { date: '2026-09-08', limit: 4, used: 1, remaining: 3, resetAt: '2026-09-08T15:00:00Z' },
+        })
+      }
+      if (url === '/api/v1/me/activity') {
+        return Response.json({
+          asOf: '2026-09-08T05:00:00Z',
+          summary: {
+            recommendationCount: 1,
+            firstPickCount: 1,
+            receivedVoteCount: 0,
+            highestVoted: null,
+          },
+          items: [{
+            recommendationId: '30000000-0000-0000-0000-000000000022',
+            trackId: '20000000-0000-0000-0000-000000000022',
+            title: '아직 반응 없는 곡', artistName: 'TrackPick Artist', albumCoverUrl: null,
+            recommendedOn: '2026-09-08', createdAt: '2026-09-08T04:00:00Z',
+            comment: '처음 소개한 곡이에요.', voteCount: 0, firstPick: true,
+          }],
+          page: { size: 20, hasMore: false, nextCursor: null },
+        })
+      }
+      return new Response('', { status: 404 })
+    })
+
+    renderApp('/activity')
+
+    expect(await screen.findByText('아직 반응 없는 곡')).toBeInTheDocument()
+    expect(screen.getByText('받은 추천').parentElement).toHaveTextContent('0')
+    expect(screen.queryByText('가장 많은 추천을 받은 곡')).not.toBeInTheDocument()
   })
 
   it('opens the account recovery entry pages', () => {

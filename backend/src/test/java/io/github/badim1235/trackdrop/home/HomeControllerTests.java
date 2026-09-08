@@ -71,8 +71,8 @@ class HomeControllerTests {
 
 		mockMvc.perform(get("/api/v1/home"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.trending.items.length()").value(6))
-			.andExpect(jsonPath("$.recent.items.length()").value(6));
+			.andExpect(jsonPath("$.trending.items.length()").value(4))
+			.andExpect(jsonPath("$.recent.items.length()").value(4));
 	}
 
 	@Test

@@ -6,7 +6,7 @@
 
 ## Context
 
-TrackDrop은 인증, 외부 음악 검색, Recommendation/Vote transaction, 일일 quota와 Ranking batch를 포함한다. 사용자에게는 Java 학습 목표와 PostgreSQL 경험이 있으며, 프로젝트는 개인 포트폴리오 규모다.
+TrackPick은 인증, 외부 음악 검색, Recommendation/Vote transaction, 일일 quota와 Ranking batch를 포함한다. 사용자에게는 Java 학습 목표와 PostgreSQL 경험이 있으며, 프로젝트는 개인 포트폴리오 규모다.
 
 Backend와 batch를 분리하거나 microservice를 도입하면 transaction, 배포와 관측 지점이 늘어난다. 반대로 모든 코드를 기술 계층별 package에 모으면 feature 경계가 흐려지고 이후 변경 범위가 커진다.
 

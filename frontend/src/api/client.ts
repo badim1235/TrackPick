@@ -2,6 +2,10 @@ import type { components } from './generated'
 
 export type SystemHealth = components['schemas']['SystemHealthResponse']
 export type AccountResponse = components['schemas']['AccountResponse']
+export type ActivityResponse = components['schemas']['ActivityResponse']
+export type FeedbackCategory = components['schemas']['FeedbackCategory']
+export type FeedbackRequest = components['schemas']['FeedbackRequest']
+export type FeedbackResponse = components['schemas']['FeedbackResponse']
 export type SignUpRequest = components['schemas']['SignUpRequest']
 export type SignUpResponse = components['schemas']['SignUpResponse']
 export type LoginRequest = components['schemas']['LoginRequest']
@@ -101,6 +105,22 @@ export async function fetchAccount(): Promise<AccountResponse | null> {
   if (response.status === 401) return null
   if (!response.ok) throw await parseError(response)
   return response.json() as Promise<AccountResponse>
+}
+
+export async function fetchMyActivity(cursor?: string): Promise<ActivityResponse> {
+  const params = new URLSearchParams()
+  if (cursor) params.set('cursor', cursor)
+  const query = params.size ? `?${params}` : ''
+  const response = await fetch(`/api/v1/me/activity${query}`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw await parseError(response)
+  return response.json() as Promise<ActivityResponse>
+}
+
+export async function submitFeedback(body: FeedbackRequest): Promise<FeedbackResponse> {
+  return mutate<FeedbackResponse>('/api/v1/feedback', body)
 }
 
 export async function searchMusic(query: string): Promise<MusicSearchResponse> {

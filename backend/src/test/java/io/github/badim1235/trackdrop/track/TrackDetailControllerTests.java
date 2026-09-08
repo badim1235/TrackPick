@@ -127,6 +127,50 @@ class TrackDetailControllerTests {
 	}
 
 	@Test
+	void keepsTheFirstPickAndAddsOnlyTheLatestRecommendationComment() throws Exception {
+		List<UUID> users = createUsers(3);
+		UUID genreId = genreId("rock");
+		UUID trackId = insertTrack("Repeated Detail", genreId, users.getFirst(), List.of());
+		LocalDate today = LocalDate.now(SERVICE_ZONE);
+		jdbcClient.sql("UPDATE recommendations SET recommended_on = :date WHERE track_id = :trackId")
+			.param("date", today.minusDays(4))
+			.param("trackId", trackId)
+			.update();
+		UUID latestRecommendationId = UUID.randomUUID();
+		OffsetDateTime latestCreatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcClient.sql("""
+				INSERT INTO recommendations (
+					id, recommender_user_id, track_id, primary_genre_id,
+					comment, comment_visibility, recommended_on, created_at
+				)
+				VALUES (
+					:id, :userId, :trackId, :genreId,
+					'가장 최근에 작성한 한줄평', 'VISIBLE', :today, :createdAt
+				)
+				""")
+			.param("id", latestRecommendationId)
+			.param("userId", users.get(1))
+			.param("trackId", trackId)
+			.param("genreId", genreId)
+			.param("today", today)
+			.param("createdAt", latestCreatedAt)
+			.update();
+		TrackDropPrincipal principal = new TrackDropPrincipal(
+			users.get(2), "viewer@example.com", AccountStatus.ACTIVE);
+
+		mockMvc.perform(get("/api/v1/tracks/{trackId}", trackId).with(user(principal)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.track.recommendation.comment")
+				.value("상세 화면에서 듣고 추천해 보세요."))
+			.andExpect(jsonPath("$.track.latestRecommendation.id")
+				.value(latestRecommendationId.toString()))
+			.andExpect(jsonPath("$.track.latestRecommendation.comment")
+				.value("가장 최근에 작성한 한줄평"))
+			.andExpect(jsonPath("$.track.latestRecommendation.canReport").value(true))
+			.andExpect(jsonPath("$.track.latestRecommendation.hasReported").value(false));
+	}
+
+	@Test
 	void returnsTrackNotFoundForAnUnknownId() throws Exception {
 		mockMvc.perform(get("/api/v1/tracks/{trackId}", UUID.randomUUID()))
 			.andExpect(status().isNotFound())

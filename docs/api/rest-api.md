@@ -1,4 +1,4 @@
-# TrackDrop REST API 명세
+# TrackPick REST API 명세
 
 > 상태: **Proposed**
 >
@@ -14,7 +14,7 @@
 
 ## 1. 문서 목적
 
-TrackDrop MVP의 화면과 도메인 명령을 HTTP API 계약으로 정의한다. 이 문서는 endpoint, 인증 경계, 요청·응답 schema, pagination, 오류 code, 동시성 충돌의 외부 표현을 정한다.
+TrackPick MVP의 화면과 도메인 명령을 HTTP API 계약으로 정의한다. 이 문서는 endpoint, 인증 경계, 요청·응답 schema, pagination, 오류 code, 동시성 충돌의 외부 표현을 정한다.
 
 프레임워크 annotation, controller 클래스, ORM 구현은 Phase 5 기술 스택 결정 이후 작성한다. API 계약은 특정 서버 프레임워크에 의존하지 않는다.
 
@@ -53,7 +53,7 @@ TrackDrop MVP의 화면과 도메인 명령을 HTTP API 계약으로 정의한�
 
 ### 4.1 세션 cookie 인증
 
-TrackDrop은 같은 origin의 웹 frontend와 API를 우선 대상으로 한다. 인증 token을 JavaScript 저장소에 노출하지 않는 `HttpOnly` cookie가 XSS로 인한 token 탈취 위험을 줄이고 로그아웃과 세션 만료 정책도 이해하기 쉽다.
+TrackPick은 같은 origin의 웹 frontend와 API를 우선 대상으로 한다. 인증 token을 JavaScript 저장소에 노출하지 않는 `HttpOnly` cookie가 XSS로 인한 token 탈취 위험을 줄이고 로그아웃과 세션 만료 정책도 이해하기 쉽다.
 
 Trade-off:
 
@@ -180,6 +180,9 @@ Path=/
 - 공개 Track과 Recommendation 응답에는 공개 닉네임만 포함한다.
 - 이메일은 공개 API에 포함하지 않고 본인의 Account API에서만 반환한다.
 - 비밀번호, 비밀번호 hash, session, CSRF token은 로그에 기록하지 않는다.
+- 가입 제한용 IP hash는 24시간 이내 삭제한다.
+- 처리 완료된 신고는 `resolved_at`부터 3개월 보관한 뒤 삭제한다. 회원 탈퇴 시 사용자·추천 FK를 null로 만들어 익명화하며, 탈퇴 계정과 연관된 `PENDING` 신고는 함께 삭제한다.
+- 회원 탈퇴 시 계정 정보, 추천, Vote와 session을 삭제한다.
 
 ### 6.4 입력 기본값
 
@@ -294,7 +297,9 @@ Path=/
 | POST | `/auth/login` | 공개 | 로그인 |
 | POST | `/auth/logout` | 필요 | 로그아웃 |
 | GET | `/me` | 필요 | 내 계정과 오늘 quota 조회 |
+| GET | `/me/activity` | 필요 | 내 추천 로그와 받은 Vote 요약 조회 |
 | DELETE | `/me` | 필요 | 비밀번호 재확인 후 계정과 활동 기록 삭제 |
+| POST | `/feedback` | 공개 | 계정과 연결하지 않은 서비스 의견 제출 |
 | GET | `/genres` | 공개 | 활성 장르 목록 |
 | GET | `/home` | 공개 | 오늘 추천 상위와 최근 등록 |
 | GET | `/tracks/recent` | 공개 | 최근 등록 Track 목록 |
@@ -309,6 +314,10 @@ Path=/
 | PATCH | `/admin/reports/users/{userId}` | 관리자 | 무혐의 또는 이용 제한 조치 |
 
 Ranking batch와 강제 재실행은 공개 REST API로 노출하지 않는다. scheduler와 권한이 제한된 운영 명령에서 동일 application service를 호출한다.
+
+### Anonymous feedback
+
+`POST /feedback`은 CSRF token과 함께 `category`(`ERROR`, `UI_USABILITY`, `OTHER`)와 1~2,000자의 `content`를 받는다. 로그인은 요구하지 않으며 계정, 이메일 또는 IP를 저장하거나 제출 행과 연결하지 않는다. 성공 시 생성된 의견 ID, 분류와 접수 시각을 `201 Created`로 반환한다.
 
 ## 9. Auth API
 
@@ -343,7 +352,7 @@ Request:
 2. 가입 요청 제한을 확인한다.
 3. Supabase Auth에 가입을 요청한다.
 4. Supabase Auth가 확인 메일을 발송한다.
-5. 이메일 확인 후 최초 로그인에서 TrackDrop 공개 닉네임과 profile을 생성한다.
+5. 이메일 확인 후 최초 로그인에서 TrackPick 공개 닉네임과 profile을 생성한다.
 
 Response `202 Accepted`:
 
@@ -373,7 +382,7 @@ Request:
 }
 ```
 
-Response `200 OK`: account/quota 구조를 반환하고 TrackDrop session cookie를 발급한다.
+Response `200 OK`: account/quota 구조를 반환하고 TrackPick session cookie를 발급한다.
 
 `rememberMe=false`는 브라우저 종료 시 제거되는 session cookie를 사용한다. `true`이면 마지막 인증 요청부터 7일 동안 유효한 persistent session cookie를 사용하며 인증 요청마다 만료를 갱신한다. 여러 기기 session을 허용하고 logout은 현재 session만 무효화한다.
 
@@ -453,6 +462,40 @@ Request:
 
 이메일은 로그인 ID이므로 별도 ID 찾기 API를 제공하지 않는다. 이메일 확인과 비밀번호 재설정 token은 Supabase Auth가 관리한다.
 
+### 9.8 GET /me/activity
+
+- 인증 필요, 본인의 기록만 조회
+- 추천 회차 생성 시각 내림차순 20개와 opaque cursor 기반 더 보기
+- 각 항목의 Vote 수는 `track_id`와 Recommendation의 `recommended_on`이 모두 같은 Vote만 집계
+- `firstPick=true`는 해당 Track에서 전역으로 가장 이른 Recommendation 회차임을 뜻함
+
+Response `200 OK`:
+
+```json
+{
+  "asOf": "2026-09-08T05:00:00Z",
+  "summary": {
+    "recommendationCount": 8,
+    "firstPickCount": 5,
+    "receivedVoteCount": 31,
+    "highestVoted": {
+      "trackId": "track-id",
+      "title": "Track title",
+      "artistName": "Artist",
+      "albumCoverUrl": null,
+      "recommendedOn": "2026-09-07",
+      "voteCount": 9
+    }
+  },
+  "items": [],
+  "page": {
+    "size": 20,
+    "hasMore": false,
+    "nextCursor": null
+  }
+}
+```
+
 ## 10. Genre API
 
 ### GET /genres
@@ -502,7 +545,7 @@ Response `200 OK`:
 }
 ```
 
-`items`는 TrackCard 목록이며 각 섹션은 최대 6곡을 반환한다. 두 섹션 중 하나의 조회가 실패하면 전체 endpoint를 부분 성공으로 만들지 않고 server 내부에서 재시도·관측한다. 최종 실패 시 명확한 오류를 반환한다.
+`items`는 TrackCard 목록이며 각 섹션은 최대 4곡을 반환한다. 두 섹션 중 하나의 조회가 실패하면 전체 endpoint를 부분 성공으로 만들지 않고 server 내부에서 재시도·관측한다. 최종 실패 시 명확한 오류를 반환한다.
 
 ## 12. Track API
 
@@ -557,7 +600,7 @@ Response `200 OK`:
 }
 ```
 
-`track`은 TrackCard와 같은 핵심 필드에 보조 장르와 provider reference를 추가한 상세 schema다.
+`track`은 TrackCard와 같은 핵심 필드에 보조 장르와 provider reference를 추가한 상세 schema다. `track.recommendation`은 최초 Recommendation을 유지한다. 전체 회차가 2개 이상이면 `track.latestRecommendation`에 가장 최근 회차 하나를 추가하고, 한 회차뿐이면 null이다. 두 한줄평은 각각 신고 가능 여부와 현재 사용자의 신고 완료 여부를 포함한다.
 
 오류:
 
@@ -577,7 +620,7 @@ Query:
 | --- | --- | --- |
 | `query` | Y | 곡명, 아티스트 또는 조합, 1~100자 |
 
-MVP는 `country=KR`, `media=music`, `entity=song`, `limit=20`, `explicit=Yes`로 우선 검색한다. KR 응답이 비어 있으면 동일 조건의 `country=US` 검색으로 보완한다. Apple이 반환한 관련도 순서를 유지하며 별도 pagination은 제공하지 않는다.
+MVP는 `country=KR`, `media=music`, `entity=song`, `limit=20`, `explicit=Yes`로 우선 검색한다. KR 검색이 비어 있으면 동일 조건의 `country=US` 검색으로 후보 ID를 발견하되, `country=KR` lookup에서 확인된 곡만 KR 메타데이터로 반환한다. US 검색의 관련도 순서를 유지하며 별도 pagination은 제공하지 않는다.
 
 Response `200 OK`:
 
@@ -951,6 +994,7 @@ Response `201 Created`:
 | --- | ---: | ---: | ---: | ---: |
 | 홈/Track/장르 조회 | O | O | O | O |
 | 오늘/과거 차트 조회 | O | O | O | O |
+| 익명 의견 제출 | O | O | O | O |
 | Preview/외부 링크 | O | O | O | O |
 | 외부 Music 검색 | X | O | O | X |
 | Recommendation 생성 | X | O | O | X |
@@ -1037,6 +1081,7 @@ Redis는 Phase 1 MVP 필수 요소가 아니다. cache를 추가하더라도 다
 15. 한줄평 숨김 시 원문 미노출
 16. preview 응답이 Apple 공식 URL과 `PROVIDER_SELECTED` 시작 위치 계약을 지킴
 17. YouTube URL과 video ID가 검색·Track 응답에 포함되지 않음
+18. 공개 의견 제출이 분류와 본문만 저장하고 계정 또는 IP를 연결하지 않음
 
 ## 25. 구현 전에 확정할 기술 선택
 

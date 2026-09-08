@@ -27,6 +27,7 @@ public record TrackDetailResponse(
 		Genre primaryGenre,
 		List<Genre> genres,
 		Recommendation recommendation,
+		Recommendation latestRecommendation,
 		Viewer viewer,
 		Preview preview,
 		List<ProviderReference> providerReferences
@@ -38,7 +39,9 @@ public record TrackDetailResponse(
 		String comment,
 		boolean commentAvailable,
 		String recommenderNickname,
-		Instant createdAt
+		Instant createdAt,
+		boolean canReport,
+		boolean hasReported
 	) {
 	}
 

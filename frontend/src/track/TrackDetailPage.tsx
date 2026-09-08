@@ -20,6 +20,7 @@ import {
   fetchTrackDetail,
   type AccountResponse,
   type CreateReportRequest,
+  type TrackDetailResponse,
 } from '../api/client'
 import { accountQueryKey, useAccount } from '../auth/account'
 import { detailArtworkUrl } from './artwork'
@@ -58,12 +59,50 @@ function DetailArtwork({ src }: { src: string | null }) {
   return <img className={styles.detailArtwork} src={detailArtworkUrl(src)} alt="" onError={() => setFailed(true)} />
 }
 
+type DetailRecommendation = TrackDetailResponse['track']['recommendation']
+
+function RecommendationComment({
+  label,
+  heading,
+  recommendation,
+  onReport,
+}: {
+  label: string
+  heading: string
+  recommendation: DetailRecommendation
+  onReport: (recommendationId: string) => void
+}) {
+  const headingId = `detail-comment-${recommendation.id}`
+  return (
+    <section className={styles.detailRecommendation} aria-labelledby={headingId}>
+      <p className={styles.sectionLabel}>{label}</p>
+      <h2 id={headingId}>{heading}</h2>
+      {recommendation.commentAvailable && recommendation.comment ? (
+        <blockquote>“{recommendation.comment}”</blockquote>
+      ) : <p className={styles.detailHiddenComment}>현재 볼 수 없는 한줄평입니다.</p>}
+      <div className={styles.detailRecommender}>
+        <div>
+          {recommendation.recommenderNickname ? <strong>{recommendation.recommenderNickname}</strong> : null}
+          <time dateTime={recommendation.createdAt}>{formatRegisteredAt(recommendation.createdAt)} 등록</time>
+        </div>
+        {recommendation.canReport ? (
+          <button className={styles.reportButton} type="button" onClick={() => onReport(recommendation.id)}>
+            <Flag aria-hidden="true" size={14} /> 신고
+          </button>
+        ) : recommendation.hasReported ? (
+          <span className={styles.reportComplete}><Check aria-hidden="true" size={14} /> 신고 완료</span>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
 export function TrackDetailPage() {
   const { trackId = '' } = useParams()
   const queryClient = useQueryClient()
   const { data: account } = useAccount()
   const [voteError, setVoteError] = useState<string | null>(null)
-  const [reportOpen, setReportOpen] = useState(false)
+  const [reportTargetId, setReportTargetId] = useState<string | null>(null)
   const [reportReason, setReportReason] = useState<CreateReportRequest['reasonCode']>('ABUSIVE_LANGUAGE')
   const [reportDetails, setReportDetails] = useState('')
   const [reportError, setReportError] = useState<string | null>(null)
@@ -107,7 +146,7 @@ export function TrackDetailPage() {
     }) => createReport(recommendationId, body),
     onSuccess: () => {
       setReportError(null)
-      setReportOpen(false)
+      setReportTargetId(null)
       setReportReason('ABUSIVE_LANGUAGE')
       setReportDetails('')
       void queryClient.invalidateQueries({ queryKey: ['track-detail', trackId] })
@@ -193,30 +232,25 @@ export function TrackDetailPage() {
         <div><span>{track.primaryGenre.displayName} 순위</span><strong>{today.genreRank ? `${today.genreRank}위` : '-'}</strong></div>
       </section>
 
-      <section className={styles.detailRecommendation} aria-labelledby="detail-comment-heading">
-        <p className={styles.sectionLabel}>FIRST PICK</p>
-        <h2 id="detail-comment-heading">처음 이 곡을 추천한 한줄평</h2>
-        {track.recommendation.commentAvailable && track.recommendation.comment ? (
-          <blockquote>“{track.recommendation.comment}”</blockquote>
-        ) : <p className={styles.detailHiddenComment}>현재 볼 수 없는 한줄평입니다.</p>}
-        <div className={styles.detailRecommender}>
-          <div>
-            {track.recommendation.recommenderNickname ? <strong>{track.recommendation.recommenderNickname}</strong> : null}
-            <time dateTime={track.recommendation.createdAt}>{formatRegisteredAt(track.recommendation.createdAt)} 등록</time>
-          </div>
-          {actions.canReport ? (
-            <button className={styles.reportButton} type="button" onClick={() => { setReportError(null); setReportOpen(true) }}>
-              <Flag aria-hidden="true" size={14} /> 신고
-            </button>
-          ) : actions.hasReported ? (
-            <span className={styles.reportComplete}><Check aria-hidden="true" size={14} /> 신고 완료</span>
-          ) : null}
-        </div>
-      </section>
+      <RecommendationComment
+        label="FIRST PICK"
+        heading="처음 이 곡을 추천한 한줄평"
+        recommendation={track.recommendation}
+        onReport={(recommendationId) => { setReportError(null); setReportTargetId(recommendationId) }}
+      />
 
-      {reportOpen ? (
+      {track.latestRecommendation ? (
+        <RecommendationComment
+          label="LATEST PICK"
+          heading="최근에 이 곡을 추천한 한줄평"
+          recommendation={track.latestRecommendation}
+          onReport={(recommendationId) => { setReportError(null); setReportTargetId(recommendationId) }}
+        />
+      ) : null}
+
+      {reportTargetId ? (
         <div className={styles.dialogBackdrop} role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget && !report.isPending) setReportOpen(false)
+          if (event.target === event.currentTarget && !report.isPending) setReportTargetId(null)
         }}>
           <section className={styles.reportDialog} role="dialog" aria-modal="true" aria-labelledby="report-dialog-title">
             <button
@@ -224,7 +258,7 @@ export function TrackDetailPage() {
               type="button"
               aria-label="닫기"
               disabled={report.isPending}
-              onClick={() => setReportOpen(false)}
+              onClick={() => setReportTargetId(null)}
             >
               <X aria-hidden="true" size={19} />
             </button>
@@ -235,7 +269,7 @@ export function TrackDetailPage() {
               event.preventDefault()
               setReportError(null)
               report.mutate({
-                recommendationId: track.recommendation.id,
+                recommendationId: reportTargetId,
                 body: { reasonCode: reportReason, details: reportDetails.trim() || null },
               })
             }}>
@@ -262,7 +296,7 @@ export function TrackDetailPage() {
               </label>
               {reportError ? <p className={styles.formError} role="alert">{reportError}</p> : null}
               <div className={styles.dialogActions}>
-                <button type="button" onClick={() => setReportOpen(false)} disabled={report.isPending}>취소</button>
+                <button type="button" onClick={() => setReportTargetId(null)} disabled={report.isPending}>취소</button>
                 <button className={styles.dangerButton} type="submit" disabled={report.isPending}>
                   {report.isPending ? '접수 중...' : '신고하기'}
                 </button>

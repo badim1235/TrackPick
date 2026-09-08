@@ -12,7 +12,7 @@ TrackPick은 사용자가 좋아하는 곡을 장르별로 소개하고, 하루 
 
 ## 현재 구현 상태
 
-Phase 13까지 구현되어 계정 인증부터 Apple 음악 검색, 곡 추천, 오늘의 실시간 차트와 과거 확정 차트까지 사용할 수 있습니다.
+MVP 기능과 배포 구성이 구현되어 계정 인증부터 Apple 음악 검색, 곡 추천, 실시간·과거 차트, 나의 활동, 신고·관리자 조치와 익명 의견 접수까지 사용할 수 있습니다.
 
 - 이메일과 비밀번호를 사용하는 Supabase 회원가입·로그인
 - 가입 확인 메일과 비밀번호 재설정 메일 요청
@@ -22,8 +22,8 @@ Phase 13까지 구현되어 계정 인증부터 Apple 음악 검색, 곡 추천,
 - 여러 기기 동시 로그인과 선택형 7일 로그인 유지
 - 내 계정 이메일과 오늘의 추천권 조회
 - 비밀번호 재확인 후 추천·투표 기록과 모든 로그인 세션을 함께 삭제하는 회원 탈퇴
-- IP별 인증 요청 및 계정 생성 제한
-- Apple KR 스토어 우선 검색과 빈 결과 시 US 보완 검색, 관련도순 상위 20곡 표시
+- IP별 인증 요청 및 계정 생성 제한과 IP hash 24시간 이내 자동 삭제
+- Apple KR 메타데이터로 통일된 관련도순 상위 20곡 검색
 - Explicit 곡 포함·표시, 앨범 정보와 Apple Music 외부 링크 제공
 - 검색 메타데이터 캐시, Apple 호출 제한과 외부 서비스 오류 처리
 - Apple Music 최상위 카탈로그 장르 목록과 곡별 원본 장르 자동 분류
@@ -40,13 +40,16 @@ Phase 13까지 구현되어 계정 인증부터 Apple 음악 검색, 곡 추천,
 - 매일 00:00 KST 전날 전체·장르별 Top 50을 확정하는 재실행 가능 Ranking snapshot
 - 날짜별 `FINAL` 과거 차트 조회와 읽기 전용 20곡 + 30곡 더 보기
 - 유휴 서버가 자정 작업을 놓친 경우 최초 과거 조회에서 누락 snapshot 자동 복구
-- 홈의 오늘 추천 상위 6곡과 오늘 최근 등록 6곡 실시간 표시
+- 홈의 오늘 추천 상위 4곡과 오늘 최근 등록 4곡 실시간 표시
 - 오늘 최근 등록 전체 목록과 고정 시점 cursor 기반 더 보기
 - 홈·최근 목록의 미리듣기, Apple 링크와 추천권 연동
 - 홈·차트·검색 결과에서 이어지는 공개 곡 상세 화면
-- 곡 상세의 오늘 득표수, 전체·장르 순위, 한줄평, 미리듣기와 추천권 연동
+- 곡 상세의 오늘 득표수, 전체·장르 순위, 최초·최신 한줄평, 미리듣기와 추천권 연동
+- 추천 회차, 최초 등록, 회차별 Vote와 최고 반응 곡을 보여주는 `나의 활동`
 - 동일 사용자 중복·자기 신고를 막는 한줄평 신고와 신고 누적 시 자동 검토 대상 전환
 - 관리자 전용 신고 검색·상세·무혐의·이용 제한 화면과 차단 사용자 세션 회수
+- 처리 완료 신고 기록의 익명화·3개월 보관 후 자동 삭제
+- 계정·이메일·IP를 연결하지 않고 분류와 본문만 저장하는 공개 의견 제출 화면
 
 ## 로컬 실행
 
@@ -74,6 +77,8 @@ npm run dev
 
 한줄평 신고 기능은 기본 활성 상태입니다. 미처리 신고 3건에 도달하면 사용자가 검토 대상으로 전환되며, 관리자는 내 계정의 `신고 관리`에서 무혐의 또는 이용 제한을 결정합니다. 긴급 비활성화가 필요할 때만 `REPORTS_ENABLED=false`를 사용합니다.
 
+하단의 `의견 보내기`는 공개 의견 제출 화면으로 연결됩니다. 제출 데이터는 분류, 본문과 접수 시각만 저장하고 계정, 이메일 또는 IP와 연결하지 않습니다. 접수 내용은 Supabase Table Editor의 `feedback_submissions` 테이블에서 확인할 수 있습니다.
+
 ## Render 배포
 
 루트의 `render.yaml`은 싱가포르 리전의 무료 Docker Web Service 하나에 프런트엔드와 백엔드를 함께 배포합니다. Render Blueprint 생성 화면에서 저장소를 연결하고 다음 값만 입력합니다.
@@ -85,11 +90,11 @@ npm run dev
 - `SUPABASE_PUBLISHABLE_KEY`: Supabase publishable key
 - `SUPABASE_SECRET_KEY`: Supabase 서버 전용 secret key (`sb_secret_...`)
 
-Render가 제공하는 `RENDER_EXTERNAL_URL`을 가입 확인과 비밀번호 재설정의 기본 리디렉션 주소로 사용합니다. 배포가 완료되면 Supabase Authentication의 URL Configuration에서 Site URL을 Render의 HTTPS 주소로 설정하고 다음 Redirect URL을 추가합니다.
+가입 확인과 비밀번호 재설정은 `render.yaml`에 고정한 TrackPick 운영 도메인으로 리디렉션합니다. Supabase Authentication의 URL Configuration에서 Site URL을 `https://trackpick.net`으로 설정하고 다음 Redirect URL을 허용합니다.
 
 ```text
-https://<render-host>/login?verified=1
-https://<render-host>/recover/password
+https://trackpick.net/login?verified=1
+https://trackpick.net/recover/password
 ```
 
 로컬 개발을 계속 사용하려면 기존 `http://127.0.0.1:5173/**` Redirect URL도 유지합니다. Render는 HTTPS 인증서를 자동으로 관리하며 운영 쿠키에는 `Secure` 속성이 적용됩니다.
@@ -111,6 +116,7 @@ npm run check
 ```
 
 설계 기준과 단계별 결정은 [`docs/README.md`](docs/README.md)에서 확인할 수 있습니다.
+출시 전 남은 결정과 운영 작업은 [`docs/operations/pre-launch-checklist.md`](docs/operations/pre-launch-checklist.md)에서 관리합니다.
 
 ## 라이선스
 

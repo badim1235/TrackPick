@@ -22,6 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 final class AppleItunesClient implements MusicCatalogProvider {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AppleItunesClient.class);
 	private static final String USER_AGENT = "Mozilla/5.0 (compatible; TrackPick/1.0)";
+	private static final String DISCOVERY_FALLBACK_STOREFRONT = "US";
 
 	private final RestClient restClient;
 	private final AppleItunesProperties properties;
@@ -53,25 +54,32 @@ final class AppleItunesClient implements MusicCatalogProvider {
 	@Override
 	public List<MusicCatalogTrack> search(String query) {
 		List<MusicCatalogTrack> tracks = fetch(searchUri(query, properties.storefront()));
-		return tracks.isEmpty() && hasFallbackStorefront()
-			? fetch(searchUri(query, properties.fallbackStorefront()))
-			: tracks;
+		if (!tracks.isEmpty()) {
+			return tracks;
+		}
+
+		List<MusicCatalogTrack> fallbackTracks = fetch(searchUri(query, DISCOVERY_FALLBACK_STOREFRONT));
+		if (fallbackTracks.isEmpty()) {
+			return List.of();
+		}
+		Map<String, MusicCatalogTrack> localizedTracks = fetch(lookupUri(
+			fallbackTracks.stream().map(MusicCatalogTrack::externalTrackId).toList(),
+			properties.storefront())).stream()
+			.collect(java.util.stream.Collectors.toMap(
+				MusicCatalogTrack::externalTrackId,
+				track -> track,
+				(first, ignored) -> first));
+		return fallbackTracks.stream()
+			.map(track -> localizedTracks.get(track.externalTrackId()))
+			.filter(java.util.Objects::nonNull)
+			.toList();
 	}
 
 	@Override
 	public Optional<MusicCatalogTrack> lookup(String externalTrackId) {
-		Optional<MusicCatalogTrack> track = findById(
+		return findById(
 			fetch(lookupUri(externalTrackId, properties.storefront())),
 			externalTrackId);
-		return track.isEmpty() && hasFallbackStorefront()
-			? findById(fetch(lookupUri(externalTrackId, properties.fallbackStorefront())), externalTrackId)
-			: track;
-	}
-
-	private boolean hasFallbackStorefront() {
-		return properties.fallbackStorefront() != null
-			&& !properties.fallbackStorefront().isBlank()
-			&& !properties.fallbackStorefront().equalsIgnoreCase(properties.storefront());
 	}
 
 	private static Optional<MusicCatalogTrack> findById(
@@ -130,6 +138,10 @@ final class AppleItunesClient implements MusicCatalogProvider {
 	}
 
 	private URI lookupUri(String externalTrackId, String storefront) {
+		return lookupUri(List.of(externalTrackId), storefront);
+	}
+
+	private URI lookupUri(List<String> externalTrackIds, String storefront) {
 		return UriComponentsBuilder.fromUri(properties.baseUrl())
 			.path("/lookup")
 			.queryParam("id", "{id}")
@@ -137,7 +149,7 @@ final class AppleItunesClient implements MusicCatalogProvider {
 			.queryParam("entity", "song")
 			.queryParam("lang", "en_us")
 			.encode(StandardCharsets.UTF_8)
-			.buildAndExpand(Map.of("id", externalTrackId))
+			.buildAndExpand(Map.of("id", String.join(",", externalTrackIds)))
 			.toUri();
 	}
 

@@ -1,7 +1,10 @@
 package io.github.badim1235.trackdrop.shared.api;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -36,9 +39,27 @@ class SpaForwardControllerTests {
 	}
 
 	@Test
-	void keepsUnknownApiRoutesBehindAuthentication() throws Exception {
+	void returnsNotFoundForAnUnknownApiWithoutCreatingASession() throws Exception {
 		mockMvc.perform(get("/api/v1/missing"))
-			.andExpect(status().isUnauthorized());
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.error.code").value("NOT_FOUND"))
+			.andExpect(result -> assertNull(result.getRequest().getSession(false)));
+	}
+
+	@Test
+	void keepsKnownProtectedApiRoutesBehindAuthenticationWithoutCreatingASession() throws Exception {
+		mockMvc.perform(get("/api/v1/me"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.error.code").value("UNAUTHENTICATED"))
+			.andExpect(result -> assertNull(result.getRequest().getSession(false)));
+	}
+
+	@Test
+	void cachesHashedFrontendAssetsForOneYear() throws Exception {
+		mockMvc.perform(get("/assets/cache-test.js"))
+			.andExpect(status().isOk())
+			.andExpect(header().string("Cache-Control", containsString("max-age=31536000")))
+			.andExpect(header().string("Cache-Control", containsString("immutable")));
 	}
 
 	@Test

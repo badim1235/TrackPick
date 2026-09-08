@@ -413,7 +413,7 @@ export function RecommendPage() {
                 aria-label="한줄평"
                 value={comment}
                 maxLength={120}
-                placeholder="남겨주세요"
+                placeholder="이 노래에 대한 한줄평을 남겨주세요."
                 onChange={(event) => setComment(event.target.value)}
               />
               <span className={styles.characterCount}>{Array.from(comment).length}/120</span>

@@ -1,5 +1,6 @@
 package io.github.badim1235.trackdrop.shared.api;
 
+import io.github.badim1235.trackdrop.activity.ActivityException;
 import io.github.badim1235.trackdrop.catalog.MusicSearchException;
 import io.github.badim1235.trackdrop.chart.DailyChartException;
 import io.github.badim1235.trackdrop.home.HomeFeedException;
@@ -91,6 +92,12 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler(HomeFeedException.class)
 	ResponseEntity<ApiErrorResponse> homeFeed(HomeFeedException exception) {
+		return ResponseEntity.status(exception.getStatus()).body(new ApiErrorResponse(new ApiError(
+			exception.getCode(), exception.getMessage(), Map.of())));
+	}
+
+	@ExceptionHandler(ActivityException.class)
+	ResponseEntity<ApiErrorResponse> activity(ActivityException exception) {
 		return ResponseEntity.status(exception.getStatus()).body(new ApiErrorResponse(new ApiError(
 			exception.getCode(), exception.getMessage(), Map.of())));
 	}

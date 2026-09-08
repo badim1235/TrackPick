@@ -13,7 +13,7 @@ public class SpaForwardController {
 	}
 
 	@GetMapping({
-		"/chart", "/recent", "/recommend", "/login", "/join", "/me", "/admin",
+		"/chart", "/recent", "/recommend", "/login", "/join", "/me", "/activity", "/feedback", "/admin",
 		"/recover/password", "/tracks/{trackId}"
 	})
 	String forwardToIndex() {

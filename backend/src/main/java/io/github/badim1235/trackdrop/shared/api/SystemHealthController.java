@@ -11,7 +11,7 @@ public class SystemHealthController {
 
 	@GetMapping("/health")
 	ResponseEntity<SystemHealthResponse> health() {
-		return ResponseEntity.ok(new SystemHealthResponse("UP", "TrackDrop"));
+		return ResponseEntity.ok(new SystemHealthResponse("UP", "TrackPick"));
 	}
 
 	record SystemHealthResponse(String status, String service) {

@@ -11,9 +11,9 @@
 	<groupId>io.github.badim1235</groupId>
 	<artifactId>trackdrop-backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>TrackDrop</name>
+	<name>TrackPick</name>
 	<description>Community-driven daily music discovery</description>
-	<url>https://github.com/badim1235/TrackDrop</url>
+	<url>https://github.com/badim1235/TrackPick</url>
 	<licenses>
 		<license>
 			<name>MIT License</name>
@@ -21,10 +21,10 @@
 		</license>
 	</licenses>
 	<scm>
-		<connection>scm:git:https://github.com/badim1235/TrackDrop.git</connection>
-		<developerConnection>scm:git:ssh://git@github.com/badim1235/TrackDrop.git</developerConnection>
+		<connection>scm:git:https://github.com/badim1235/TrackPick.git</connection>
+		<developerConnection>scm:git:ssh://git@github.com/badim1235/TrackPick.git</developerConnection>
 		<tag>HEAD</tag>
-		<url>https://github.com/badim1235/TrackDrop</url>
+		<url>https://github.com/badim1235/TrackPick</url>
 	</scm>
 	<properties>
 		<java.version>25</java.version>
